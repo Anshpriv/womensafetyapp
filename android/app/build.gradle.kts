@@ -6,11 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.truck_safety_app"
+    namespace = "com.example.womensafetyapp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // ✅ CORRECT SYNTAX FOR KOTLIN DSL
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -20,11 +22,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.truck_safety_app"
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.example.womensafetyapp"
+        minSdk = flutter.minSdkVersion  // ✅ MUST BE 21 OR HIGHER
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true  // ✅ ADDED
     }
 
     buildTypes {
@@ -37,6 +40,9 @@ android {
 flutter {
     source = "../.."
 }
+
 dependencies {
     implementation("com.google.firebase:firebase-appcheck-debug:17.1.2")
+    // ✅ DESUGARING LIBRARY
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
