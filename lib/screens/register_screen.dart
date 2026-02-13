@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 
@@ -31,7 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final auth = context.read<AuthService>();
-      await auth.register(_email.text, _password.text);
+      await auth.register(_email.text.trim(), _password.text.trim());
 
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, "/profile");
@@ -48,64 +49,226 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Register")),
-      body: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _email,
-                decoration: const InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Background gradient
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF080013), Color(0xFF311543)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return "Enter email";
-                  if (!v.contains("@")) return "Enter valid email";
-                  return null;
-                },
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _password,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+            ),
+
+            // Registration Lottie animation
+            Align(
+              alignment: const Alignment(0, -0.55),
+              child: SizedBox(
+                height: 260,
+                child: Lottie.asset(
+                  'assets/images/Registration_animation.json', // ✅ new JSON
+                  repeat: true,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+
+            // Dark overlay
+            Container(color: Colors.black.withOpacity(0.40)),
+
+            // App title at top
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  const Icon(Icons.shield, color: Colors.pinkAccent, size: 26),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Shrimati Setu',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Women Safety',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                  )
+                ],
+              ),
+            ),
+
+            // Register card at bottom
+            Align(
+              alignment: const Alignment(0, 0.65),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _buildRegisterCard(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.6),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Create your safety account.",
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            TextFormField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration('Email'),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return "Enter email";
+                if (!v.contains("@")) return "Enter valid email";
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: _password,
+              obscureText: _obscure,
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration('Password').copyWith(
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscure ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.white70,
+                  ),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return "Enter password";
+                if (v.length < 6) return "Min 6 characters";
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _register,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.pinkAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return "Enter password";
-                  if (v.length < 6) return "Min 6 characters";
-                  return null;
-                },
+                child: _loading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        "Create Account",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
               ),
-              const SizedBox(height: 18),
+            ),
 
-              SizedBox(
-                width: double.infinity,
-                height: 45,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _register,
-                  child: _loading
-                      ? const CircularProgressIndicator()
-                      : const Text("Register"),
+            const SizedBox(height: 10),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Already have an account? ",
+                  style: TextStyle(color: Colors.white60, fontSize: 12),
                 ),
-              ),
-
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Already have an account? Login"),
-              ),
-            ],
-          ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Text(
+                    "Login",
+                    style: TextStyle(
+                      color: Colors.pinkAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.08),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.pinkAccent, width: 1.6),
       ),
     );
   }

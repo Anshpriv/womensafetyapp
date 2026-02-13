@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "4890750983",
-    "project_id": "womensafetyapp-990d4",
-    "storage_bucket": "womensafetyapp-990d4.firebasestorage.app"
+    "project_number": "144627799852",
+    "project_id": "truckproject-8e5e8",
+    "storage_bucket": "truckproject-8e5e8.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:4890750983:android:4dc7cc669095e92b0b3aa2",
+        "mobilesdk_app_id": "1:144627799852:android:c747b405aa4cf2eac27e89",
         "android_client_info": {
-          "package_name": "com.example.womensafetyapp"
+          "package_name": "com.womensaftey.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBGdT5WKs151aNXvYRvcgyoxwoBbi98f08"
+          "current_key": "AIzaSyBkd8NRpAzwOmWGys5KwA0Qp2gtp2mhtk0"
         }
       ],
       "services": {

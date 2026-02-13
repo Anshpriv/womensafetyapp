@@ -1,11 +1,28 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../services/call_service.dart';
 
-class EmergencyContactsScreen extends StatelessWidget {
+class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({super.key});
+
+  @override
+  State<EmergencyContactsScreen> createState() => _EmergencyContactsScreenState();
+}
+
+class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
 
   // ✅ Clean phone number input
   String _cleanPhone(String input) {
@@ -37,224 +54,266 @@ class EmergencyContactsScreen extends StatelessWidget {
     return RegExp(r'^\+\d{10,15}$').hasMatch(phone);
   }
 
-  void _showAddContactDialog(BuildContext context, DatabaseService db) {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    bool makePrimary = false;
+  Future<void> _addContact(DatabaseService db) async {
+    final name = _nameController.text.trim();
+    final phone = _cleanPhone(_phoneController.text);
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-            title: const Text("Add Emergency Contact"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: "Name"),
-                ),
-                TextField(
-                  controller: phoneCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Phone (10 digits or +91...)",
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: makePrimary,
-                      onChanged: (v) => setState(() => makePrimary = v ?? false),
-                    ),
-                    const Expanded(
-                      child: Text("Set as Primary Contact"),
-                    )
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final name = nameCtrl.text.trim();
-                  final phone = _cleanPhone(phoneCtrl.text);
+    if (name.isEmpty || phone.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Please enter both name and phone')),
+      );
+      return;
+    }
 
-                  if (name.isEmpty || phone.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Please enter name and phone")),
-                    );
-                    return;
-                  }
+    if (!_isValidPhone(phone)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Invalid phone. Use 10 digits or +91...')),
+      );
+      return;
+    }
 
-                  if (!_isValidPhone(phone)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Invalid phone. Use 10 digits or +91..."),
-                      ),
-                    );
-                    return;
-                  }
+    try {
+      await db.addContact(name, phone, false);
 
-                  await db.addContact(name, phone, makePrimary);
+      _nameController.clear();
+      _phoneController.clear();
 
-                  if (context.mounted) Navigator.pop(context);
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Contact added ✅")),
-                  );
-                },
-                child: const Text("Add"),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Contact added')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Failed to add contact: $e')),
+      );
+    }
   }
 
-  void _confirmDelete(BuildContext context, DatabaseService db, String contactId) {
-    showDialog(
+  Future<void> _showAddDialog(DatabaseService db) async {
+    await showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete Contact?"),
-        content: const Text("Are you sure you want to delete this contact?"),
+      builder: (context) => AlertDialog(
+        title: const Text('Add Emergency Contact'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                prefixIcon: Icon(Icons.person),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone (10 digits or +91...)',
+                prefixIcon: Icon(Icons.phone),
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            onPressed: () {
+              _nameController.clear();
+              _phoneController.clear();
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await db.deleteContact(contactId);
-              if (context.mounted) Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Contact deleted ✅")),
-              );
-            },
-            child: const Text("Delete"),
+            onPressed: () => _addContact(db),
+            child: const Text('Add'),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _confirmDelete(DatabaseService db, String docId, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Contact?'),
+        content: Text('Remove "$name" from emergency contacts?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await db.deleteContact(docId);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Contact deleted')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Delete failed: $e')),
+        );
+      }
+    }
+  }
+
+  // ✅ NEW: Make call with confirmation
+  Future<void> _makeCall(String name, String phone) async {
+    try {
+      // Show confirmation dialog
+      final confirm = await CallService.confirmCall(context, name, phone);
+      
+      if (confirm && mounted) {
+        final success = await CallService.makeCall(phone);
+        
+        if (!success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('❌ Failed to make call')),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthService>().currentUser;
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
 
     if (user == null) {
-      return const Scaffold(body: Center(child: Text("Not logged in")));
+      Future.microtask(() {
+        Navigator.pushReplacementNamed(context, "/login");
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final db = DatabaseService(uid: user.uid);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Emergency Contacts"),
+        title: const Text('Emergency Contacts'),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddContactDialog(context, db),
-        child: const Icon(Icons.add),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      body: StreamBuilder<QuerySnapshot>(
         stream: db.contactsStream,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data?.docs ?? [];
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
 
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                "No contacts added yet.\nAdd at least 1 emergency contact ✅",
-                textAlign: TextAlign.center,
+          final contacts = snapshot.data?.docs ?? [];
+
+          if (contacts.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.contact_phone, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No emergency contacts yet',
+                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap + to add contacts',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                  ),
+                ],
               ),
             );
           }
 
-          return Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data();
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: contacts.length,
+            itemBuilder: (context, index) {
+              final doc = contacts[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final name = data['name'] ?? 'No Name';
+              final phone = data['phone'] ?? 'No Phone';
+              final isPrimary = data['isPrimary'] == true;
 
-                    final name = data["name"] ?? "";
-                    final phone = data["phone"] ?? "";
-                    final isPrimary = data["isPrimary"] == true;
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: isPrimary ? Colors.green : Colors.blue,
-                          child: Icon(
-                            isPrimary ? Icons.star : Icons.person,
-                            color: Colors.white,
-                          ),
-                        ),
-                        title: Text(
-                          name,
-                          style: TextStyle(
-                            fontWeight: isPrimary ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                        subtitle: Text(phone),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (!isPrimary)
-                              IconButton(
-                                icon: const Icon(Icons.star_border),
-                                tooltip: "Set Primary",
-                                onPressed: () async {
-                                  await db.setPrimaryContact(doc.id);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Primary contact updated ⭐")),
-                                  );
-                                },
-                              ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _confirmDelete(context, db, doc.id),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // ✅ Continue button
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isPrimary ? Colors.green : Colors.blue.shade100,
+                    child: Icon(
+                      isPrimary ? Icons.star : Icons.person,
+                      color: isPrimary ? Colors.white : Colors.blue.shade700,
+                    ),
                   ),
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, "/home");
-                  },
-                  icon: const Icon(Icons.check),
-                  label: const Text("Done"),
+                  title: Text(
+                    name,
+                    style: TextStyle(
+                      fontWeight: isPrimary ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(phone),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ✅ NEW: Call Button
+                      IconButton(
+                        icon: const Icon(Icons.call, color: Colors.green),
+                        onPressed: () => _makeCall(name, phone),
+                        tooltip: 'Call',
+                      ),
+                      // Primary Star Button
+                      if (!isPrimary)
+                        IconButton(
+                          icon: const Icon(Icons.star_border, color: Colors.orange),
+                          onPressed: () async {
+                            await db.setPrimaryContact(doc.id);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('⭐ Primary contact updated')),
+                            );
+                          },
+                          tooltip: 'Set Primary',
+                        ),
+                      // Delete Button
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmDelete(db, doc.id, name),
+                        tooltip: 'Delete',
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              );
+            },
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddDialog(db),
+        child: const Icon(Icons.add),
       ),
     );
   }

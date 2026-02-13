@@ -1,4 +1,4 @@
-package com.example.womensafetyapp
+package com.womensaftey.app
 
 import android.telephony.SmsManager
 import io.flutter.embedding.android.FlutterActivity

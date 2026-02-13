@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.truck_safety_app"
+    namespace = "com.womensaftey.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.truck_safety_app"
+        applicationId = "com.womensaftey.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -37,6 +37,7 @@ android {
 flutter {
     source = "../.."
 }
+
 dependencies {
     implementation("com.google.firebase:firebase-appcheck-debug:17.1.2")
 }

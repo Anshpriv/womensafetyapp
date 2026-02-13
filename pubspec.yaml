@@ -1,7 +1,6 @@
 name: truck_safety_app
-description: "A truck safety application."
+description: "A women safety application."
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -11,47 +10,59 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Firebase
   firebase_core: ^3.4.0
   firebase_auth: ^5.2.0
   cloud_firestore: ^5.4.0
   firebase_storage: ^12.3.0
-  firebase_app_check: ^0.3.0+7
 
-  # State management
   provider: ^6.1.2
 
-  # Location + Maps
   geolocator: ^13.0.1
   geocoding: ^3.0.0
   google_maps_flutter: ^2.9.0
   url_launcher: ^6.3.0
 
-  # Sensors
   sensors_plus: ^6.1.0
 
-  # Permissions
   permission_handler: ^11.3.1
 
-  # Calling
   flutter_phone_direct_caller: ^2.2.1
 
-  # Voice command
   speech_to_text: ^7.0.0
 
-  # Storage / Paths
+  volume_controller: ^2.0.7
+
   path_provider: ^2.1.4
 
-  # Intl
   intl: ^0.19.0
 
-  # Icons
   cupertino_icons: ^1.0.8
+
+  camera: ^0.11.0+2
+  video_player: ^2.9.1
+
+  shared_preferences: ^2.3.3
+
+  flutter_svg: ^2.0.10   # (rakh sakta hai, but abhi use nahi kar rahe)
+  lottie: ^3.0.0          # ✅ IMPORTANT: ye line add
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/icon/falcon.png
+    - assets/images/women_saftey.json   # ✅ json file yahi honi chahiye
+    - assets/images/Registration_animation.json
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_ath: "assets/icon/falcon.png"
+  adaptive_icon_background: "#FF0000"
+  adaptive_icon_foreground: "assets/icon/falcon.png"
