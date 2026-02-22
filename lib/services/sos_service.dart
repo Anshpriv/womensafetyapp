@@ -10,7 +10,7 @@ class SOSService {
   final String uid;
   SOSService({required this.uid});
 
-  static const String _cachedContactsKey = 'cached_emergency_contacts';
+  String get _cachedContactsKey => 'cached_emergency_contacts_$uid';
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   Future<Position?> _getLocation() async {
@@ -57,6 +57,19 @@ class SOSService {
   }
 
   Future<List<String>> _getContacts() async {
+    Future<List<String>> readLocal() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        return (prefs.getStringList(_cachedContactsKey) ?? const [])
+            .map((p) => p.trim())
+            .where((p) => p.isNotEmpty)
+            .toSet()
+            .toList();
+      } catch (_) {
+        return [];
+      }
+    }
+
     try {
       final snap = await _db
           .collection("users")
@@ -73,22 +86,17 @@ class SOSService {
       if (cloudContacts.isNotEmpty) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList(_cachedContactsKey, cloudContacts);
+        return cloudContacts;
       }
 
-      return cloudContacts;
+      // Firestore request succeeded but returned empty (common when offline/no cache).
+      final localContacts = await readLocal();
+      return localContacts;
     } catch (_) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        return (prefs.getStringList(_cachedContactsKey) ?? const [])
-            .map((p) => p.trim())
-            .where((p) => p.isNotEmpty)
-            .toSet()
-            .toList();
-      } catch (_) {
-        return [];
-      }
+      return await readLocal();
     }
   }
+
 
   Future<void> _saveSosEvent(Map<String, dynamic> data) async {
     await _db.collection("users").doc(uid).collection("sos_events").add(data);
@@ -99,11 +107,12 @@ class SOSService {
     final smsOk = await PermissionService.requestSmsPermission();
     if (!smsOk) return "⚠️ SMS permission denied";
 
-    // ✅ location
+    // ✅ location (best effort — SOS should still go without GPS)
     final pos = await _getLocation();
-    if (pos == null) return "⚠️ Location missing";
 
-    final address = await _getAddress(pos.latitude, pos.longitude);
+    final address = pos == null
+        ? "Location unavailable"
+        : await _getAddress(pos.latitude, pos.longitude);
 
     // ✅ FIX: remove duplicates + remove empty contacts
     final contacts = (await _getContacts())
@@ -112,8 +121,9 @@ class SOSService {
         .toSet()
         .toList();
 
-    final mapLink =
-        "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
+    final mapLink = pos == null
+        ? "Location unavailable"
+        : "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
 
     final message =
         "🚨 SOS ALERT! I need help.\n\n📍Location: $address\n\n🗺️ Map: $mapLink";
@@ -121,8 +131,8 @@ class SOSService {
     try {
       await _saveSosEvent({
         "time": FieldValue.serverTimestamp(),
-        "lat": pos.latitude,
-        "lng": pos.longitude,
+        "lat": pos?.latitude,
+        "lng": pos?.longitude,
         "address": address,
         "map": mapLink,
         "contactsCount": contacts.length,

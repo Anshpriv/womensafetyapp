@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DatabaseService {
   final String uid;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  static const String _cachedContactsKey = 'cached_emergency_contacts';
+  String get _cachedContactsKey => 'cached_emergency_contacts_$uid';
 
   DatabaseService({required this.uid});
 
