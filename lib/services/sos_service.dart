@@ -125,8 +125,12 @@ class SOSService {
         ? "Location unavailable"
         : "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
 
+    final coordinates = pos == null
+        ? "Coordinates unavailable"
+        : "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
+
     final message =
-        "🚨 SOS ALERT! I need help.\n\n📍Location: $address\n\n🗺️ Map: $mapLink";
+        "🚨 SOS ALERT! I need help.\n\n📍Location: $address\n📌 Coordinates: $coordinates\n\n🗺️ Map: $mapLink";
 
     try {
       await _saveSosEvent({
