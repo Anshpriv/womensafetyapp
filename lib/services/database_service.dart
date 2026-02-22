@@ -1,10 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DatabaseService {
   final String uid;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static const String _cachedContactsKey = 'cached_emergency_contacts';
 
   DatabaseService({required this.uid});
+
+  Future<void> _cacheContacts(List<Map<String, dynamic>> contacts) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final phones = contacts
+          .map((c) => (c['phone'] ?? '').toString().trim())
+          .where((p) => p.isNotEmpty)
+          .toSet()
+          .toList();
+      await prefs.setStringList(_cachedContactsKey, phones);
+    } catch (_) {
+      // Best-effort cache only.
+    }
+  }
 
   // ============================
   // ✅ User Profile Methods
@@ -60,6 +76,9 @@ class DatabaseService {
       "isPrimary": isPrimary,
       "createdAt": FieldValue.serverTimestamp(),
     });
+
+    final contacts = await getEmergencyContacts();
+    await _cacheContacts(contacts);
   }
 
   /// ✅ Delete contact
@@ -70,6 +89,9 @@ class DatabaseService {
         .collection("contacts")
         .doc(contactId)
         .delete();
+
+    final contacts = await getEmergencyContacts();
+    await _cacheContacts(contacts);
   }
 
   /// ✅ Set primary contact
@@ -79,6 +101,9 @@ class DatabaseService {
     for (final doc in all.docs) {
       await doc.reference.update({"isPrimary": doc.id == contactId});
     }
+
+    final contacts = await getEmergencyContacts();
+    await _cacheContacts(contacts);
   }
 
   /// ✅ Stream contacts list
@@ -120,6 +145,8 @@ class DatabaseService {
         if (aTime == null || bTime == null) return 0;
         return bTime.compareTo(aTime); // Newest first
       });
+
+      await _cacheContacts(contacts);
 
       return contacts;
     } catch (e) {

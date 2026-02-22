@@ -4,11 +4,13 @@ import 'package:geolocator/geolocator.dart';
 
 import 'sms_service.dart';
 import 'permission_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SOSService {
   final String uid;
   SOSService({required this.uid});
 
+  static const String _cachedContactsKey = 'cached_emergency_contacts';
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   Future<Position?> _getLocation() async {
@@ -62,12 +64,29 @@ class SOSService {
           .collection("contacts")
           .get();
 
-      return snap.docs
+      final cloudContacts = snap.docs
           .map((d) => (d.data()["phone"] ?? "").toString().trim())
           .where((p) => p.isNotEmpty)
+          .toSet()
           .toList();
+
+      if (cloudContacts.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList(_cachedContactsKey, cloudContacts);
+      }
+
+      return cloudContacts;
     } catch (_) {
-      return [];
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        return (prefs.getStringList(_cachedContactsKey) ?? const [])
+            .map((p) => p.trim())
+            .where((p) => p.isNotEmpty)
+            .toSet()
+            .toList();
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -99,14 +118,18 @@ class SOSService {
     final message =
         "🚨 SOS ALERT! I need help.\n\n📍Location: $address\n\n🗺️ Map: $mapLink";
 
-    await _saveSosEvent({
-      "time": FieldValue.serverTimestamp(),
-      "lat": pos.latitude,
-      "lng": pos.longitude,
-      "address": address,
-      "map": mapLink,
-      "contactsCount": contacts.length,
-    });
+    try {
+      await _saveSosEvent({
+        "time": FieldValue.serverTimestamp(),
+        "lat": pos.latitude,
+        "lng": pos.longitude,
+        "address": address,
+        "map": mapLink,
+        "contactsCount": contacts.length,
+      });
+    } catch (_) {
+      // Never block SOS SMS on cloud logging failures.
+    }
 
     if (contacts.isEmpty) return "⚠️ No emergency contacts found";
 
