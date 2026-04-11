@@ -40,4 +40,13 @@ flutter {
 
 dependencies {
     implementation("com.google.firebase:firebase-appcheck-debug:17.1.2")
+    implementation("androidx.camera:camera-camera2:1.5.1")
+    implementation("androidx.camera:camera-core:1.5.1")
+    implementation("androidx.camera:camera-lifecycle:1.5.1")
+    implementation("androidx.camera:camera-video:1.5.1")
+    implementation("androidx.camera:camera-view:1.5.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-ktx:1.10.1")
+    implementation("com.google.guava:guava:33.4.8-android")
 }

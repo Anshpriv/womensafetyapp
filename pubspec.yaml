@@ -56,13 +56,13 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/icon/falcon.png
+    - assets/icon/falcon.jpg
     - assets/images/women_saftey.json   # ✅ json file yahi honi chahiye
     - assets/images/Registration_animation.json
 
 flutter_launcher_icons:
   android: true
   ios: false
-  image_ath: "assets/icon/falcon.png"
+  image_path: "assets/icon/falcon.jpg"
   adaptive_icon_background: "#FF0000"
-  adaptive_icon_foreground: "assets/icon/falcon.png"
+  adaptive_icon_foreground: "assets/icon/falcon.jpg"

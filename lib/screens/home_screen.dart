@@ -22,7 +22,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription? _accelSub;
   GoogleMapController? _mapController;
   Position? _currentPosition;
@@ -57,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startShakeDetection();
     _getCurrentLocation();
     _initializeNewServices();
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _accelSub?.cancel();
     _recordingTimer?.cancel();
     _recordingService.dispose();
@@ -73,6 +75,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _powerButtonService?.dispose();
     _timerSOSService?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncRecordingState();
+    }
   }
 
   Future<void> _initializeNewServices() async {
@@ -322,6 +331,34 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       debugPrint('❌ _startRecording() EXCEPTION: $e');
+    }
+  }
+
+  Future<void> _syncRecordingState() async {
+    final completedPath = await _recordingService.consumeCompletedRecording();
+    final error = await _recordingService.consumeRecordingError();
+    final stateChanged = await _recordingService.refreshRecordingState();
+
+    if (!mounted) return;
+
+    if (stateChanged) {
+      setState(() {});
+    }
+
+    if (completedPath != null) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Recording saved: ${completedPath.split('/').last}'),
+        ),
+      );
+      await RecordingService.cleanupOldRecordings();
+    }
+
+    if (error != null && error.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Recording failed: $error')),
+      );
     }
   }
 
@@ -840,7 +877,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             await _toggleVoiceCommands();
                           },
                         ),
-                        Divider(color: Colors.white24),
                         ListTile(
                           leading: const Icon(
                             Icons.people,

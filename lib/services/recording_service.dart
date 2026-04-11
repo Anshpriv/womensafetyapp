@@ -1,13 +1,18 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 
 class RecordingService {
+  static const MethodChannel _dualCameraChannel =
+      MethodChannel('dual_camera_channel');
+
   CameraController? _controller;
   bool _isRecording = false;
   String? _currentVideoPath;
+  bool _isDualRecordingActive = false;
 
   bool get isRecording => _isRecording;
   String? get currentVideoPath => _currentVideoPath;
@@ -35,6 +40,61 @@ class RecordingService {
     return granted;
   }
 
+  Future<bool> _canUseDualRecording() async {
+    if (!Platform.isAndroid) return false;
+
+    try {
+      final supported = await _dualCameraChannel.invokeMethod<bool>(
+        'isDualRecordingSupported',
+      );
+      return supported ?? false;
+    } catch (e) {
+      debugPrint('⚠️ Dual camera support check failed: $e');
+      return false;
+    }
+  }
+
+  Future<Directory> _getRecordingsRootDirectory() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final recordingsRoot = Directory('${directory.path}${Platform.pathSeparator}recordings');
+
+    if (!await recordingsRoot.exists()) {
+      await recordingsRoot.create(recursive: true);
+    }
+
+    return recordingsRoot;
+  }
+
+  Future<String> _buildRecordingPath() async {
+    final now = DateTime.now();
+    final recordingsRoot = await _getRecordingsRootDirectory();
+    final dateFolderName =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final datedDirectory = Directory(
+      '${recordingsRoot.path}${Platform.pathSeparator}$dateFolderName',
+    );
+
+    if (!await datedDirectory.exists()) {
+      await datedDirectory.create(recursive: true);
+    }
+
+    final modeLabel = _isDualRecordingActive ? 'dual' : 'back';
+    final fileName =
+        'sos_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_$modeLabel.mp4';
+
+    return '${datedDirectory.path}${Platform.pathSeparator}$fileName';
+  }
+
+  CameraDescription? _selectCamera(List<CameraDescription> cameras) {
+    for (final camera in cameras) {
+      if (camera.lensDirection == CameraLensDirection.back) {
+        return camera;
+      }
+    }
+
+    return cameras.isNotEmpty ? cameras.first : null;
+  }
+
   // ✅ Initialize camera with detailed logs
   Future<bool> initializeCamera() async {
     try {
@@ -47,8 +107,12 @@ class RecordingService {
         return false;
       }
 
-      // Use back camera (index 0)
-      final camera = cameras.first;
+      final camera = _selectCamera(cameras);
+      if (camera == null) {
+        debugPrint('❌ No suitable camera found!');
+        return false;
+      }
+
       debugPrint('📸 Using camera: ${camera.name} (${camera.lensDirection})');
 
       _controller = CameraController(
@@ -97,10 +161,25 @@ class RecordingService {
     }
 
     try {
-      debugPrint('📁 Getting app directory...');
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = '${directory.path}/sos_$timestamp.mp4';
+      if (await _canUseDualRecording()) {
+        _isDualRecordingActive = true;
+        final path = await _buildRecordingPath();
+        final started = await _dualCameraChannel.invokeMethod<bool>(
+          'startDualRecording',
+          {'outputPath': path},
+        );
+
+        if (started == true) {
+          _isRecording = true;
+          _currentVideoPath = path;
+          debugPrint('✅ Native dual recording launched');
+          return true;
+        }
+
+        _isDualRecordingActive = false;
+      }
+
+      final path = await _buildRecordingPath();
       
       debugPrint('📁 Save path: $path');
       debugPrint('🎥 Starting video recording...');
@@ -108,6 +187,7 @@ class RecordingService {
       await _controller!.startVideoRecording();
       
       _isRecording = true;
+      _isDualRecordingActive = false;
       _currentVideoPath = path;
 
       debugPrint('✅ Recording started successfully!');
@@ -126,6 +206,16 @@ class RecordingService {
     debugPrint('⏹️ stopRecording() called');
     
     if (!_isRecording || _controller == null) {
+      if (_isDualRecordingActive) {
+        try {
+          await _dualCameraChannel.invokeMethod<bool>('stopDualRecording');
+          return _currentVideoPath;
+        } catch (e) {
+          debugPrint('❌ Dual stop failed: $e');
+          return null;
+        }
+      }
+
       debugPrint('⚠️ Not recording or controller null');
       return null;
     }
@@ -172,17 +262,82 @@ class RecordingService {
     _controller = null;
   }
 
+  Future<String?> consumeCompletedRecording() async {
+    if (!Platform.isAndroid) return null;
+
+    try {
+      final path = await _dualCameraChannel.invokeMethod<String>(
+        'consumeLastRecordingPath',
+      );
+
+      if (path != null && path.isNotEmpty) {
+        _isRecording = false;
+        _isDualRecordingActive = false;
+        _currentVideoPath = null;
+        return path;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('⚠️ Failed to consume completed recording: $e');
+      return null;
+    }
+  }
+
+  Future<String?> consumeRecordingError() async {
+    if (!Platform.isAndroid) return null;
+
+    try {
+      return await _dualCameraChannel.invokeMethod<String>(
+        'consumeLastRecordingError',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to consume recording error: $e');
+      return null;
+    }
+  }
+
+  Future<bool> refreshRecordingState() async {
+    if (!_isDualRecordingActive || !Platform.isAndroid) return false;
+
+    try {
+      final isActive = await _dualCameraChannel.invokeMethod<bool>(
+        'isDualRecordingActive',
+      );
+
+      if (isActive == false) {
+        _isRecording = false;
+        _isDualRecordingActive = false;
+        _currentVideoPath = null;
+        return true;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to refresh recording state: $e');
+    }
+
+    return false;
+  }
+
   // ✅ Get saved recordings with logs
   static Future<List<File>> getSavedRecordings() async {
     try {
       debugPrint('📂 Getting saved recordings...');
       final directory = await getApplicationDocumentsDirectory();
-      debugPrint('📂 Directory: ${directory.path}');
-      
-      final files = directory
-          .listSync()
+      final recordingsRoot = Directory(
+        '${directory.path}${Platform.pathSeparator}recordings',
+      );
+
+      debugPrint('📂 Directory: ${recordingsRoot.path}');
+      if (!await recordingsRoot.exists()) {
+        return [];
+      }
+
+      final files = recordingsRoot
+          .listSync(recursive: true)
           .whereType<File>()
-          .where((f) => f.path.endsWith('.mp4') && f.path.contains('sos_'))
+          .where(
+            (f) => f.path.endsWith('.mp4') && f.path.contains('sos_'),
+          )
           .toList();
 
       debugPrint('📂 Found ${files.length} recordings');
@@ -206,8 +361,42 @@ class RecordingService {
         await files[i].delete();
         debugPrint('🗑️ Deleted: ${files[i].path}');
       }
+
+      await _cleanupEmptyRecordingFolders();
     } catch (e) {
       debugPrint('❌ Cleanup failed: $e');
+    }
+  }
+
+  static Future<void> cleanupAfterDeletion(File file) async {
+    try {
+      await file.delete();
+      await _cleanupEmptyRecordingFolders();
+    } catch (e) {
+      debugPrint('❌ Cleanup after deletion failed: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> _cleanupEmptyRecordingFolders() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final recordingsRoot = Directory(
+      '${directory.path}${Platform.pathSeparator}recordings',
+    );
+
+    if (!await recordingsRoot.exists()) return;
+
+    final datedDirectories = recordingsRoot
+        .listSync()
+        .whereType<Directory>()
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+
+    for (final datedDirectory in datedDirectories) {
+      if (datedDirectory.listSync().isEmpty) {
+        await datedDirectory.delete();
+        debugPrint('🗑️ Deleted empty folder: ${datedDirectory.path}');
+      }
     }
   }
 }

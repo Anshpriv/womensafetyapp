@@ -67,6 +67,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".DualCameraRecordingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/NormalTheme" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

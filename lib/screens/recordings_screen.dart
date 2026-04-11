@@ -15,6 +15,17 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   List<File> _recordings = [];
   bool _loading = true;
 
+  String _folderNameForFile(File file) {
+    final segments = file.path.split(Platform.pathSeparator);
+    final recordingsIndex = segments.lastIndexOf('recordings');
+
+    if (recordingsIndex >= 0 && recordingsIndex + 1 < segments.length) {
+      return segments[recordingsIndex + 1];
+    }
+
+    return 'Unknown date';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +62,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
     if (confirm == true) {
       try {
-        await file.delete();
+        await RecordingService.cleanupAfterDeletion(file);
         if (!mounted) return;  // ✅ FIX: Check mounted before showing snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ Recording deleted')),
@@ -72,8 +83,26 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  List<_RecordingListItem> _buildGroupedItems() {
+    final items = <_RecordingListItem>[];
+    String? currentFolder;
+
+    for (final file in _recordings) {
+      final folderName = _folderNameForFile(file);
+      if (folderName != currentFolder) {
+        currentFolder = folderName;
+        items.add(_RecordingHeaderItem(folderName));
+      }
+      items.add(_RecordingFileItem(file));
+    }
+
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final groupedItems = _buildGroupedItems();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Saved Recordings'),
@@ -107,9 +136,23 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(8),
-                  itemCount: _recordings.length,
+                  itemCount: groupedItems.length,
                   itemBuilder: (context, index) {
-                    final file = _recordings[index];
+                    final item = groupedItems[index];
+                    if (item is _RecordingHeaderItem) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+                        child: Text(
+                          item.folderName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    }
+
+                    final file = (item as _RecordingFileItem).file;
                     final stat = file.statSync();
                     final date = stat.modified;
                     final size = stat.size;
@@ -163,6 +206,20 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                 ),
     );
   }
+}
+
+abstract class _RecordingListItem {}
+
+class _RecordingHeaderItem extends _RecordingListItem {
+  final String folderName;
+
+  _RecordingHeaderItem(this.folderName);
+}
+
+class _RecordingFileItem extends _RecordingListItem {
+  final File file;
+
+  _RecordingFileItem(this.file);
 }
 
 // ✅ Video Player Screen
