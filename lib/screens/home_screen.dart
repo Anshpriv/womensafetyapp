@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../services/sos_service.dart';
 import '../services/recording_service.dart';
+import '../services/storage_service.dart';
 import '../services/call_service.dart';
 import '../services/timer_sos_service.dart';
 import '../services/voice_command_service.dart';
@@ -347,18 +348,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     if (completedPath != null) {
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Recording saved: ${completedPath.split('/').last}'),
-        ),
-      );
-      await RecordingService.cleanupOldRecordings();
+      await _handleSavedRecording(completedPath);
     }
 
     if (error != null && error.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❌ Recording failed: $error')),
       );
+    }
+  }
+
+  Future<void> _handleSavedRecording(String path) async {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✅ Recording saved: ${path.split('/').last}'),
+      ),
+    );
+
+    try {
+      final user = context.read<AuthService>().currentUser;
+      if (user != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('☁️ Uploading recording to Firebase...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        await StorageService(uid: user.uid).uploadRecording(path);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Recording uploaded to Firebase'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Firebase upload failed: $e'),
+        ),
+      );
+    } finally {
+      await RecordingService.cleanupOldRecordings();
     }
   }
 
@@ -372,14 +408,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) setState(() {});
 
       if (path != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '✅ Recording saved: ${path.split('/').last}',
-            ),
-          ),
-        );
-        await RecordingService.cleanupOldRecordings();
+        await _handleSavedRecording(path);
       }
     } catch (e) {
       debugPrint('❌ _stopRecording() EXCEPTION: $e');
@@ -1109,52 +1138,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       onTap: _triggerRealCall,
                     ),
 
-                    // Help
+                    // Profile
                     _BottomAction(
-                      label: 'Help',
-                      icon: Icons.help_outline,
+                      label: 'Profile',
+                      icon: Icons.person,
                       color: Colors.lightBlueAccent,
                       onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: const Color(0xFF140624),
-                            title: const Text(
-                              'How to use',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            content: const SingleChildScrollView(
-                              child: Text(
-                                '🚨 EMERGENCY\n\n'
-                                '• Tap the big SOS button\n'
-                                '• Shake phone 3 times\n'
-                                '• Say "Help me"\n'
-                                '• Press power/volume 5x\n\n'
-                                '⏰ TIMER SOS\n\n'
-                                '• Set return time from menu\n'
-                                '• Check-in when asked\n'
-                                '• No response → auto SOS\n\n'
-                                '🎤 VOICE\n\n'
-                                '• "Help me"\n'
-                                '• "Call police"\n'
-                                '• "Start recording"\n\n'
-                                'Stay alert, we\'re watching out for you 🛡️',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(context),
-                                child: const Text(
-                                  'Got it',
-                                  style: TextStyle(
-                                      color: Colors.pinkAccent),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
+                        Navigator.pushNamed(context, '/profile');
                       },
                     ),
                   ],

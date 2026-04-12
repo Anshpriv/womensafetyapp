@@ -16,6 +16,7 @@ class DatabaseService {
     required String phone,
     required String bloodGroup,
     required String emergencyNote,
+    String? photoUrl,
   }) async {
     await _db.collection("users").doc(uid).set({
       "uid": uid,
@@ -23,8 +24,39 @@ class DatabaseService {
       "phone": phone.trim(),
       "bloodGroup": bloodGroup.trim(),
       "emergencyNote": emergencyNote.trim(),
+      if (photoUrl != null) "photoUrl": photoUrl.trim(),
       "updatedAt": FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<Map<String, dynamic>?> getUserProfile() async {
+    final doc = await _db.collection("users").doc(uid).get();
+    return doc.data();
+  }
+
+  Future<void> updateProfilePhoto(String photoUrl) async {
+    await _db.collection("users").doc(uid).set({
+      "photoUrl": photoUrl.trim(),
+      "updatedAt": FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> saveRecordingMetadata({
+    required String fileName,
+    required String downloadUrl,
+    required String storagePath,
+    required int fileSizeBytes,
+    required String recordedAt,
+  }) async {
+    await _db.collection('recordings').add({
+      'userId': uid,
+      'fileName': fileName,
+      'downloadUrl': downloadUrl,
+      'storagePath': storagePath,
+      'fileSizeBytes': fileSizeBytes,
+      'recordedAt': recordedAt,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   /// ✅ Stream user profile
