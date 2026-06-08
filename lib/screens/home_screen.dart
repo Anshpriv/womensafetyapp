@@ -15,6 +15,7 @@ import '../services/call_service.dart';
 import '../services/timer_sos_service.dart';
 import '../services/voice_command_service.dart';
 import '../services/power_button_service.dart';
+import '../services/geofence_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,7 +24,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   StreamSubscription? _accelSub;
   GoogleMapController? _mapController;
   Position? _currentPosition;
@@ -55,10 +56,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   TimerSOSService? _timerSOSService;
   bool _isTimerActive = false;
 
+  // GeoFence
+  GeoFenceService? _geoFenceService;
+
+  // Map Animation
+  AnimationController? _pulseController;
+  Animation<double>? _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: false);
+    
+    _pulseAnimation = Tween<double>(begin: 0, end: 150).animate(
+      CurvedAnimation(parent: _pulseController!, curve: Curves.easeOut),
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
+
     _startShakeDetection();
     _getCurrentLocation();
     _initializeNewServices();
@@ -75,6 +95,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _voiceService?.dispose();
     _powerButtonService?.dispose();
     _timerSOSService?.dispose();
+    _geoFenceService?.dispose();
+    _pulseController?.dispose();
     super.dispose();
   }
 
@@ -135,6 +157,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isTimerActive = await _timerSOSService!.isTimerActive();
     setState(() => _isTimerActive = isTimerActive);
     debugPrint('✅ Timer SOS initialized (Active: $isTimerActive)');
+
+    _geoFenceService = GeoFenceService(uid: user.uid);
+    await _geoFenceService!.startMonitoring();
+    debugPrint('✅ GeoFence Monitoring started');
   }
 
   Future<void> _toggleVoiceCommands() async {
@@ -922,6 +948,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                         ListTile(
                           leading: const Icon(
+                            Icons.security,
+                            color: Colors.pinkAccent,
+                          ),
+                          title: const Text(
+                            'Safe Zones',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/safe_zones');
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(
                             Icons.video_library,
                             color: Colors.orangeAccent,
                           ),
@@ -1026,6 +1066,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           zoom: 16,
                         ),
                         markers: _markers,
+                        circles: {
+                          Circle(
+                            circleId: const CircleId('pulse'),
+                            center: LatLng(
+                              _currentPosition!.latitude,
+                              _currentPosition!.longitude,
+                            ),
+                            radius: _pulseAnimation?.value ?? 0,
+                            fillColor: Colors.blueAccent.withOpacity(
+                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(0.0, 1.0) * 0.3,
+                            ),
+                            strokeWidth: 1,
+                            strokeColor: Colors.blueAccent.withOpacity(
+                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(0.0, 1.0),
+                            ),
+                          ),
+                        },
                         myLocationEnabled: true,
                         myLocationButtonEnabled: false,
                         compassEnabled: true,

@@ -14,6 +14,7 @@ import 'screens/home_screen.dart';
 import 'screens/profile_setup_screen.dart';
 import 'screens/emergency_contacts_screen.dart';
 import 'screens/recordings_screen.dart';
+import 'screens/safe_zone_management_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,7 @@ class WomenSafetyApp extends StatelessWidget {
               '/profile': (_) => const ProfileSetupScreen(),
               '/contacts': (_) => const EmergencyContactsScreen(),
               '/recordings': (_) => const RecordingsScreen(),
+              '/safe_zones': (_) => const SafeZoneManagementScreen(),
             },
           );
         },
