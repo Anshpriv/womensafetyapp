@@ -16,6 +16,7 @@ import '../services/timer_sos_service.dart';
 import '../services/voice_command_service.dart';
 import '../services/power_button_service.dart';
 import '../services/geofence_service.dart';
+import '../services/ai_risk_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,7 +25,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   StreamSubscription? _accelSub;
   GoogleMapController? _mapController;
   Position? _currentPosition;
@@ -35,11 +37,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   final int _shakeRequired = 3;
   int _shakeCount = 0;
   DateTime _lastShakeTime = DateTime.fromMillisecondsSinceEpoch(0);
+  final List<MovementSample> _movementWindow = [];
 
   // SOS cooldown
   DateTime _lastSOSTime = DateTime.fromMillisecondsSinceEpoch(0);
   final Duration _sosCooldown = const Duration(seconds: 10);
   bool _sendingSOS = false;
+  final List<DateTime> _recentAutomaticTriggerTimes = [];
+  int _recentSosCount = 0;
+
+  // AI-Based Contextual Threat & Risk Detection
+  final AIRiskService _aiRiskService = AIRiskService(
+    inferenceUrl: String.fromEnvironment('AI_RISK_API_URL'),
+  );
+  AIRiskResult? _lastAIRiskResult;
+  bool _analyzingRisk = false;
 
   // Recording
   final RecordingService _recordingService = RecordingService();
@@ -72,12 +84,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: false);
-    
-    _pulseAnimation = Tween<double>(begin: 0, end: 150).animate(
-      CurvedAnimation(parent: _pulseController!, curve: Curves.easeOut),
-    )..addListener(() {
-        if (mounted) setState(() {});
-      });
+
+    _pulseAnimation =
+        Tween<double>(begin: 0, end: 150).animate(
+          CurvedAnimation(parent: _pulseController!, curve: Curves.easeOut),
+        )..addListener(() {
+          if (mounted) setState(() {});
+        });
 
     _startShakeDetection();
     _getCurrentLocation();
@@ -124,9 +137,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       onRecordingStarted: () => _startRecording(),
       onPoliceCall: () {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('📞 Calling Police...')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('📞 Calling Police...')));
         }
       },
     );
@@ -139,9 +152,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       uid: user.uid,
       onSOSTriggered: () {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('🔘 Power Button SOS!')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('🔘 Power Button SOS!')));
         }
       },
     );
@@ -194,9 +207,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
   void _startShakeDetection() {
     _accelSub = userAccelerometerEvents.listen((event) {
-      final magnitude =
-          sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+      final magnitude = sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z,
+      );
       final now = DateTime.now();
+      _recordMovementSample(event.x, event.y, event.z, magnitude, now);
 
       if (now.difference(_lastShakeTime).inMilliseconds < 400) return;
 
@@ -212,11 +227,91 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         debugPrint("📳 Shake detected: $_shakeCount/$_shakeRequired");
 
         if (_shakeCount >= _shakeRequired) {
+          final detectedShakeCount = _shakeCount;
           _shakeCount = 0;
-          _autoSOS();
+          _handleAutomaticShakeTrigger(detectedShakeCount);
         }
       }
     });
+  }
+
+  void _recordMovementSample(
+    double x,
+    double y,
+    double z,
+    double magnitude,
+    DateTime timestamp,
+  ) {
+    _movementWindow.add(
+      MovementSample(
+        x: x,
+        y: y,
+        z: z,
+        magnitude: magnitude,
+        timestamp: timestamp,
+      ),
+    );
+
+    final cutoff = timestamp.subtract(const Duration(seconds: 4));
+    _movementWindow.removeWhere((sample) => sample.timestamp.isBefore(cutoff));
+  }
+
+  Future<void> _handleAutomaticShakeTrigger(int detectedShakeCount) async {
+    if (DateTime.now().difference(_lastSOSTime) < _sosCooldown) return;
+    if (_sendingSOS || _analyzingRisk) return;
+
+    final now = DateTime.now();
+    final previousAutomaticTrigger = _recentAutomaticTriggerTimes.isEmpty
+        ? null
+        : _recentAutomaticTriggerTimes.last;
+    _recentAutomaticTriggerTimes.add(now);
+    _recentAutomaticTriggerTimes.removeWhere(
+      (time) => now.difference(time) > const Duration(minutes: 5),
+    );
+
+    setState(() => _analyzingRisk = true);
+
+    try {
+      final riskContext = AIRiskService.buildShakeContext(
+        samples: List<MovementSample>.from(_movementWindow),
+        shakeCount: detectedShakeCount,
+        position: _currentPosition,
+        recentAutomaticTriggerCount: _recentAutomaticTriggerTimes.length,
+        recentSosCount: _recentSosCount,
+        secondsSincePreviousTrigger: previousAutomaticTrigger == null
+            ? 9999
+            : now.difference(previousAutomaticTrigger).inSeconds,
+      );
+
+      final result = await _aiRiskService.analyze(riskContext);
+      if (mounted) {
+        setState(() => _lastAIRiskResult = result);
+      }
+
+      switch (result.level) {
+        case AIRiskLevel.lowRisk:
+          debugPrint('AI risk LOW_RISK for shake: ${result.reason}');
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Normal activity detected. Monitoring continues.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          return;
+        case AIRiskLevel.suspicious:
+          await _showSuspiciousActivityDialog(result);
+          return;
+        case AIRiskLevel.highRisk:
+          await _autoSOS(aiResult: result);
+          return;
+      }
+    } catch (e) {
+      debugPrint('AI risk analysis failed; using existing shake SOS flow: $e');
+      await _autoSOS();
+    } finally {
+      if (mounted) setState(() => _analyzingRisk = false);
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -267,8 +362,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       Marker(
         markerId: const MarkerId('current_location'),
         position: LatLng(position.latitude, position.longitude),
-        icon:
-            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         infoWindow: const InfoWindow(
           title: 'You',
           snippet: 'Your current location',
@@ -277,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     );
   }
 
-  Future<void> _autoSOS() async {
+  Future<void> _autoSOS({AIRiskResult? aiResult}) async {
     if (DateTime.now().difference(_lastSOSTime) < _sosCooldown) return;
     if (_sendingSOS) return;
 
@@ -285,26 +379,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     setState(() => _sendingSOS = true);
 
     try {
-      await _startRecording();
-
       final auth = context.read<AuthService>();
       final user = auth.currentUser;
       if (user == null) return;
 
+      await _startRecording();
+
       final sos = SOSService(uid: user.uid);
-      final result = await sos.triggerSOS();
+      final result = await sos.triggerSOS(
+        eventMetadata: {
+          'trigger_type': 'automatic_shake',
+          if (aiResult != null)
+            ...aiResult.toFirestore(triggerType: 'automatic_shake'),
+        },
+      );
       _lastSOSTime = DateTime.now();
+      _recentSosCount++;
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("📳 Shake SOS ✅: $result")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("📳 Shake SOS ✅: $result")));
     } catch (e) {
       debugPrint('❌ AUTO SOS exception: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ SOS failed: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("❌ SOS failed: $e")));
     } finally {
       if (mounted) setState(() => _sendingSOS = false);
     }
@@ -317,29 +418,108 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     setState(() => _sendingSOS = true);
 
     try {
-      await _startRecording();
-
       final auth = context.read<AuthService>();
       final user = auth.currentUser;
       if (user == null) return;
 
+      await _startRecording();
+
       final sos = SOSService(uid: user.uid);
       final result = await sos.triggerSOS();
       _lastSOSTime = DateTime.now();
+      _recentSosCount++;
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("🚨 SOS ✅: $result")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("🚨 SOS ✅: $result")));
     } catch (e) {
       debugPrint('❌ MANUAL SOS exception: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ SOS failed: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("❌ SOS failed: $e")));
     } finally {
       if (mounted) setState(() => _sendingSOS = false);
     }
+  }
+
+  Future<void> _showSuspiciousActivityDialog(AIRiskResult aiResult) async {
+    if (!mounted) return;
+
+    Timer? escalationTimer;
+    escalationTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop('timeout');
+      }
+    });
+
+    final response = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          backgroundColor: Colors.orange.shade50,
+          title: Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange.shade700,
+                size: 30,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Are You Safe?',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Unusual movement was detected. Please confirm you are safe.',
+            textAlign: TextAlign.center,
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, 'safe'),
+              icon: const Icon(Icons.check_circle),
+              label: const Text('I am Safe'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, 'emergency'),
+              icon: const Icon(Icons.warning),
+              label: const Text('SOS'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    escalationTimer.cancel();
+
+    if (response == 'safe') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thanks. Monitoring continues.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      return;
+    }
+
+    await _autoSOS(aiResult: aiResult);
   }
 
   Future<void> _startRecording() async {
@@ -353,8 +533,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         if (mounted) setState(() {});
 
         _recordingTimer?.cancel();
-        _recordingTimer =
-            Timer(const Duration(minutes: 10), () async => _stopRecording());
+        _recordingTimer = Timer(
+          const Duration(minutes: 10),
+          () async => _stopRecording(),
+        );
       }
     } catch (e) {
       debugPrint('❌ _startRecording() EXCEPTION: $e');
@@ -378,9 +560,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     }
 
     if (error != null && error.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Recording failed: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Recording failed: $error')));
     }
   }
 
@@ -388,9 +570,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('✅ Recording saved: ${path.split('/').last}'),
-      ),
+      SnackBar(content: Text('✅ Recording saved: ${path.split('/').last}')),
     );
 
     try {
@@ -407,18 +587,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Recording uploaded to Firebase'),
-          ),
+          const SnackBar(content: Text('✅ Recording uploaded to Firebase')),
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Firebase upload failed: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Firebase upload failed: $e')));
     } finally {
       await RecordingService.cleanupOldRecordings();
     }
@@ -480,8 +656,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             children: [
               const Text(
                 'Your safety timer has expired!',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
@@ -492,10 +667,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               const SizedBox(height: 20),
               Text(
                 'SOS will be triggered automatically in 60 seconds if you don\'t respond.',
-                style: TextStyle(
-                  color: Colors.red.shade700,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -533,7 +705,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       ),
     );
 
-    autoTriggerTimer?.cancel();
+    autoTriggerTimer.cancel();
 
     if (response == 'safe') {
       await _timerSOSService?.checkIn();
@@ -599,8 +771,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         picked.minute,
                       );
                       if (selectedTime.isBefore(now)) {
-                        selectedTime =
-                            selectedTime.add(const Duration(days: 1));
+                        selectedTime = selectedTime.add(
+                          const Duration(days: 1),
+                        );
                       }
                     });
                   }
@@ -749,9 +922,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
         if (!mounted) return;
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('📞 Calling $name...')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('📞 Calling $name...')));
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('❌ Failed to make call')),
@@ -761,9 +934,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     } catch (e) {
       debugPrint('❌ Call error: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
     }
   }
 
@@ -773,12 +946,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     final user = auth.currentUser;
 
     if (user == null) {
-      Future.microtask(
-        () => Navigator.pushReplacementNamed(context, "/login"),
-      );
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      Future.microtask(() => Navigator.pushReplacementNamed(context, "/login"));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     const background = Color(0xFF090014);
@@ -796,10 +965,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             const SizedBox(width: 8),
             const Text(
               "Shrimati Setu",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
             const Spacer(),
             if (_recordingService.isRecording)
@@ -819,9 +985,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 isScrollControlled: true,
                 backgroundColor: const Color(0xFF140624),
                 shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 builder: (context) => DraggableScrollableSheet(
                   initialChildSize: 0.7,
@@ -857,12 +1021,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                           ),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor:
-                                  _isTimerActive ? Colors.orange : Colors.grey,
+                              backgroundColor: _isTimerActive
+                                  ? Colors.orange
+                                  : Colors.grey,
                               child: Icon(
-                                _isTimerActive
-                                    ? Icons.timer
-                                    : Icons.timer_off,
+                                _isTimerActive ? Icons.timer : Icons.timer_off,
                                 color: Colors.white,
                               ),
                             ),
@@ -899,12 +1062,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                                 }
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    _isTimerActive ? Colors.red : Colors.orange,
+                                backgroundColor: _isTimerActive
+                                    ? Colors.red
+                                    : Colors.orange,
                                 foregroundColor: Colors.white,
                               ),
-                              child:
-                                  Text(_isTimerActive ? 'Cancel' : 'Start'),
+                              child: Text(_isTimerActive ? 'Cancel' : 'Start'),
                             ),
                           ),
                         ),
@@ -1004,10 +1167,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                           onTap: () async {
                             Navigator.pop(context);
                             await auth.logout();
-                            Navigator.pushReplacementNamed(
-                              context,
-                              '/login',
-                            );
+                            Navigator.pushReplacementNamed(context, '/login');
                           },
                         ),
                         const SizedBox(height: 20),
@@ -1021,8 +1181,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         ],
       ),
       body: Padding(
-        padding:
-            const EdgeInsets.only(left: 16, right: 16, bottom: 8, top: 4),
+        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8, top: 4),
         child: Column(
           children: [
             // Only map card on top
@@ -1045,14 +1204,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(
-                                color: Colors.pinkAccent),
+                            CircularProgressIndicator(color: Colors.pinkAccent),
                             SizedBox(height: 16),
                             Text(
                               'Locking on to your location...',
-                              style: TextStyle(
-                                color: Colors.white70,
-                              ),
+                              style: TextStyle(color: Colors.white70),
                             ),
                           ],
                         ),
@@ -1075,11 +1231,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                             ),
                             radius: _pulseAnimation?.value ?? 0,
                             fillColor: Colors.blueAccent.withOpacity(
-                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(0.0, 1.0) * 0.3,
+                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(
+                                    0.0,
+                                    1.0,
+                                  ) *
+                                  0.3,
                             ),
                             strokeWidth: 1,
                             strokeColor: Colors.blueAccent.withOpacity(
-                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(0.0, 1.0),
+                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(
+                                0.0,
+                                1.0,
+                              ),
                             ),
                           ),
                         },
@@ -1096,11 +1259,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               ),
             ),
             const SizedBox(height: 10),
+            _SafetyStatusBanner(
+              isAnalyzing: _analyzingRisk,
+              result: _lastAIRiskResult,
+            ),
+            const SizedBox(height: 10),
 
             // Bottom controls
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFF130922),
                 borderRadius: BorderRadius.circular(24),
@@ -1119,8 +1286,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   children: [
                     // Record
                     _BottomAction(
-                      label:
-                          _recordingService.isRecording ? 'Stop' : 'Record',
+                      label: _recordingService.isRecording ? 'Stop' : 'Record',
                       icon: _recordingService.isRecording
                           ? Icons.stop_circle
                           : Icons.videocam,
@@ -1146,8 +1312,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
-                              color:
-                                  _sendingSOS ? Colors.grey : accent,
+                              color: _sendingSOS ? Colors.grey : accent,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
@@ -1215,6 +1380,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   }
 }
 
+class _SafetyStatusBanner extends StatelessWidget {
+  final bool isAnalyzing;
+  final AIRiskResult? result;
+
+  const _SafetyStatusBanner({required this.isAnalyzing, required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final level = result?.level ?? AIRiskLevel.lowRisk;
+    final statusColor = isAnalyzing
+        ? Colors.blueAccent
+        : switch (level) {
+            AIRiskLevel.lowRisk => Colors.greenAccent,
+            AIRiskLevel.suspicious => Colors.orangeAccent,
+            AIRiskLevel.highRisk => Colors.redAccent,
+          };
+    final icon = isAnalyzing
+        ? Icons.radar
+        : switch (level) {
+            AIRiskLevel.lowRisk => Icons.check_circle,
+            AIRiskLevel.suspicious => Icons.warning_amber_rounded,
+            AIRiskLevel.highRisk => Icons.emergency,
+          };
+    final label = isAnalyzing ? 'Checking Activity' : level.userLabel;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF130922),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusColor.withOpacity(0.7)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: statusColor, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BottomAction extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1239,10 +1457,7 @@ class _BottomAction extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
           ),
         ],
       ),

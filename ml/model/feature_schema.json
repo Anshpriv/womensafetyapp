@@ -1,0 +1,79 @@
+{
+  "model_version": "random-forest-context-risk-v1",
+  "model_type": "RandomForestClassifier",
+  "feature_columns": [
+    "trigger_type",
+    "shake_count",
+    "shake_intensity",
+    "shake_duration_ms",
+    "movement_variance",
+    "movement_frequency",
+    "speed",
+    "accuracy",
+    "location_available",
+    "geofence_violation",
+    "distress_voice_detected",
+    "recent_automatic_trigger_count",
+    "recent_sos_count",
+    "seconds_since_previous_trigger",
+    "hour_of_day"
+  ],
+  "labels": [
+    "HIGH_RISK",
+    "LOW_RISK",
+    "SUSPICIOUS"
+  ],
+  "test_size": 0.25,
+  "random_state": 42,
+  "classification_report": {
+    "HIGH_RISK": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 2.0
+    },
+    "LOW_RISK": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 2.0
+    },
+    "SUSPICIOUS": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 2.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 6.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 6.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      2
+    ]
+  ],
+  "dataset_note": "Prototype dataset only. Real-world deployment requires properly labelled and validated safety-event data."
+}

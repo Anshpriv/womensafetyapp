@@ -75,7 +75,7 @@ class SOSService {
     await _db.collection("users").doc(uid).collection("sos_events").add(data);
   }
 
-  Future<String> triggerSOS() async {
+  Future<String> triggerSOS({Map<String, dynamic>? eventMetadata}) async {
     // ✅ SMS permission
     final smsOk = await PermissionService.requestSmsPermission();
     if (!smsOk) return "⚠️ SMS permission denied";
@@ -106,15 +106,13 @@ class SOSService {
       "address": address,
       "map": mapLink,
       "contactsCount": contacts.length,
+      if (eventMetadata != null) ...eventMetadata,
     });
 
     if (contacts.isEmpty) return "⚠️ No emergency contacts found";
 
     // ✅ REAL BACKGROUND SMS
-    final sent = await SmsService.sendToAll(
-      phones: contacts,
-      message: message,
-    );
+    final sent = await SmsService.sendToAll(phones: contacts, message: message);
 
     return "✅ SOS sent to $sent/${contacts.length} contacts (background)";
   }

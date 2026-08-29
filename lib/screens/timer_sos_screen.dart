@@ -36,6 +36,7 @@ class _TimerSOSScreenState extends State<TimerSOSScreen> {
     final isActive = await _timerService!.isTimerActive();
     final remaining = await _timerService!.getRemainingTime();
 
+    if (!mounted) return;
     setState(() {
       _isTimerActive = isActive;
       _remainingTime = remaining;
@@ -63,13 +64,14 @@ class _TimerSOSScreenState extends State<TimerSOSScreen> {
       expectedReturn = expectedReturn.add(const Duration(days: 1));
     }
 
-    await _timerService?.startTimer(expectedReturn);
+    await _timerService?.setTimer(expectedReturn);
     await _checkTimerStatus();
 
     if (!mounted) return;
+    final formattedTime = selectedTime.format(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('⏰ Timer set for ${selectedTime.format(context)}'),
+        content: Text('⏰ Timer set for $formattedTime'),
         backgroundColor: Colors.green,
       ),
     );
@@ -144,10 +146,7 @@ class _TimerSOSScreenState extends State<TimerSOSScreen> {
             if (!_isTimerActive) ...[
               const Text(
                 '"I\'m Going Out" Feature',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
@@ -200,10 +199,7 @@ class _TimerSOSScreenState extends State<TimerSOSScreen> {
                   SizedBox(height: 8),
                   Text(
                     'How it works:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   SizedBox(height: 8),
                   Text(
