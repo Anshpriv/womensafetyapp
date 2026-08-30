@@ -591,10 +591,11 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } catch (e) {
+      debugPrint('❌ Upload error in home_screen: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('❌ Firebase upload failed: $e')));
+      ).showSnackBar(SnackBar(content: Text('❌ Upload failed: $e')));
     } finally {
       await RecordingService.cleanupOldRecordings();
     }

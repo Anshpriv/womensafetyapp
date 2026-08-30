@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
@@ -22,6 +23,13 @@ Future<void> main() async {
   // ✅ Firebase init
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // ✅ Supabase Storage init
+  await Supabase.initialize(
+    url: 'https://brqvinydqpbqfjurivgc.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycXZpbnlkcXBicWZqdXJpdmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwOTEyNzUsImV4cCI6MjEwMzY2NzI3NX0.lakQoZWJ8O9MaUM6j5P-yL33dJNOQMr6aEJ4he2ZCXQ',
   );
 
   runApp(const WomenSafetyApp());

@@ -39,19 +39,19 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBkd8NRpAzwOmWGys5KwA0Qp2gtp2mhtk0',
-    appId: '1:144627799852:android:c747b405aa4cf2eac27e89',
-    messagingSenderId: '144627799852',
-    projectId: 'truckproject-8e5e8',
-    storageBucket: 'truckproject-8e5e8.firebasestorage.app',
+    apiKey: 'AIzaSyAljv6_UwP4Pz4g78bQMGKxZlHY_yVvJqQ',
+    appId: '1:590673217701:android:cc65b01402187a637de54c',
+    messagingSenderId: '590673217701',
+    projectId: 'shrimatisetu-dc6a7',
+    storageBucket: 'shrimatisetu-dc6a7.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBkd8NRpAzwOmWGys5KwA0Qp2gtp2mhtk0',
-    appId: '1:144627799852:ios:c747b405aa4cf2eac27e89',
-    messagingSenderId: '144627799852',
-    projectId: 'truckproject-8e5e8',
-    storageBucket: 'truckproject-8e5e8.firebasestorage.app',
+    apiKey: 'AIzaSyAljv6_UwP4Pz4g78bQMGKxZlHY_yVvJqQ',
+    appId: '1:590673217701:android:cc65b01402187a637de54c',
+    messagingSenderId: '590673217701',
+    projectId: 'shrimatisetu-dc6a7',
+    storageBucket: 'shrimatisetu-dc6a7.firebasestorage.app',
     iosBundleId: 'com.womensaftey.app',
   );
 }

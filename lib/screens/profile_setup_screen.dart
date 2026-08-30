@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
@@ -12,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../services/storage_service.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -176,15 +176,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       }
 
       final file = File(picked.path);
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_photos')
-          .child('${user.uid}.jpg');
-
-      await ref.putFile(file);
-      final downloadUrl = await ref.getDownloadURL();
-
-      await DatabaseService(uid: user.uid).updateProfilePhoto(downloadUrl);
+      final downloadUrl = await StorageService(uid: user.uid).uploadProfilePhoto(file);
 
       if (!mounted) return;
       setState(() {

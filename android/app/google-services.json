@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "144627799852",
-    "project_id": "truckproject-8e5e8",
-    "storage_bucket": "truckproject-8e5e8.firebasestorage.app"
+    "project_number": "590673217701",
+    "project_id": "shrimatisetu-dc6a7",
+    "storage_bucket": "shrimatisetu-dc6a7.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:144627799852:android:c747b405aa4cf2eac27e89",
+        "mobilesdk_app_id": "1:590673217701:android:cc65b01402187a637de54c",
         "android_client_info": {
           "package_name": "com.womensaftey.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBkd8NRpAzwOmWGys5KwA0Qp2gtp2mhtk0"
+          "current_key": "AIzaSyAljv6_UwP4Pz4g78bQMGKxZlHY_yVvJqQ"
         }
       ],
       "services": {

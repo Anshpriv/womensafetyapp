@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'database_service.dart';
 
@@ -16,13 +17,13 @@ class RecordingUploadResult {
 
 class StorageService {
   final String uid;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   StorageService({required this.uid});
 
   Future<RecordingUploadResult> uploadRecording(String localPath) async {
     final file = File(localPath);
     if (!await file.exists()) {
+      debugPrint('❌ Recording file not found at: $localPath');
       throw Exception('Recording file not found');
     }
 
@@ -30,28 +31,75 @@ class StorageService {
         ? file.uri.pathSegments.last
         : 'recording.mp4';
     final dateFolder = _extractDateFolder(file);
-    final storagePath = 'recordings/$uid/$dateFolder/$fileName';
+    final storagePath = '$uid/$dateFolder/$fileName';
 
-    final ref = _storage.ref().child(storagePath);
-    await ref.putFile(
-      file,
-      SettableMetadata(contentType: 'video/mp4'),
-    );
+    debugPrint('🚀 Starting upload to Supabase Storage: $storagePath');
 
-    final downloadUrl = await ref.getDownloadURL();
+    try {
+      // Upload to Supabase Storage bucket ('recordings')
+      await Supabase.instance.client.storage.from('recordings').upload(
+            storagePath,
+            file,
+            fileOptions: const FileOptions(
+              contentType: 'video/mp4',
+              upsert: true,
+            ),
+          );
 
-    await DatabaseService(uid: uid).saveRecordingMetadata(
-      fileName: fileName,
-      downloadUrl: downloadUrl,
-      storagePath: storagePath,
-      fileSizeBytes: await file.length(),
-      recordedAt: DateTime.now().toIso8601String(),
-    );
+      final downloadUrl = Supabase.instance.client.storage
+          .from('recordings')
+          .getPublicUrl(storagePath);
 
-    return RecordingUploadResult(
-      downloadUrl: downloadUrl,
-      storagePath: storagePath,
-    );
+      debugPrint('✅ Supabase upload successful! URL: $downloadUrl');
+
+      await DatabaseService(uid: uid).saveRecordingMetadata(
+        fileName: fileName,
+        downloadUrl: downloadUrl,
+        storagePath: storagePath,
+        fileSizeBytes: await file.length(),
+        recordedAt: DateTime.now().toIso8601String(),
+      );
+
+      debugPrint('💾 Recording metadata saved to Firestore');
+
+      return RecordingUploadResult(
+        downloadUrl: downloadUrl,
+        storagePath: storagePath,
+      );
+    } catch (e, stack) {
+      debugPrint('❌ Supabase upload ERROR: $e');
+      debugPrint('📌 Stack trace: $stack');
+      rethrow;
+    }
+  }
+
+  Future<String> uploadProfilePhoto(File file) async {
+    if (!await file.exists()) {
+      throw Exception('Photo file not found');
+    }
+
+    final storagePath = 'profile_photos/$uid.jpg';
+
+    debugPrint('🚀 Uploading profile photo to Supabase: $storagePath');
+
+    await Supabase.instance.client.storage.from('recordings').upload(
+          storagePath,
+          file,
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
+        );
+
+    final downloadUrl = Supabase.instance.client.storage
+        .from('recordings')
+        .getPublicUrl(storagePath);
+
+    debugPrint('✅ Profile photo uploaded! URL: $downloadUrl');
+
+    await DatabaseService(uid: uid).updateProfilePhoto(downloadUrl);
+
+    return downloadUrl;
   }
 
   String _extractDateFolder(File file) {
