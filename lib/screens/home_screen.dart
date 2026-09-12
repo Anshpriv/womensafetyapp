@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -317,15 +318,27 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _getCurrentLocation() async {
     try {
-      final permission = await Geolocator.checkPermission();
+      final permissionCheck = Geolocator.checkPermission();
+      final permission = kIsWeb
+          ? await permissionCheck.timeout(const Duration(seconds: 3))
+          : await permissionCheck;
       if (permission == LocationPermission.denied) {
-        await Geolocator.requestPermission();
+        final permissionRequest = Geolocator.requestPermission();
+        if (kIsWeb) {
+          await permissionRequest.timeout(const Duration(seconds: 3));
+        } else {
+          await permissionRequest;
+        }
       }
 
-      final position = await Geolocator.getCurrentPosition(
+      final locationRequest = Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+      final position = kIsWeb
+          ? await locationRequest.timeout(const Duration(seconds: 8))
+          : await locationRequest;
 
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         _updateMarker(position);
@@ -339,6 +352,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } catch (e) {
       debugPrint('❌ Location error: $e');
+      if (!mounted) return;
       setState(() {
         _currentPosition = Position(
           latitude: 18.5204,
@@ -1026,208 +1040,355 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
             child: IconButton(
+              tooltip: 'Safety Menu',
               icon: const Icon(Icons.menu),
               onPressed: () {
-                showModalBottomSheet(
+                showGeneralDialog(
                   context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.white,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                  ),
-                  builder: (context) => DraggableScrollableSheet(
-                    initialChildSize: 0.7,
-                    minChildSize: 0.5,
-                    maxChildSize: 0.95,
-                    expand: false,
-                    builder: (context, scrollController) => Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: ListView(
-                        controller: scrollController,
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(Icons.menu, color: Color(0xFFD9366E)),
-                              SizedBox(width: 8),
-                              Text(
-                                'Safety Menu',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF202A3B),
-                                ),
+                  barrierDismissible: true,
+                  barrierLabel: 'Close safety menu',
+                  barrierColor: const Color(0x3D202A3B),
+                  transitionDuration: const Duration(milliseconds: 650),
+                  pageBuilder: (context, animation, secondaryAnimation) => BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: animation,
+                        curve: const Interval(
+                          0,
+                          0.72,
+                          curve: Curves.easeOutCubic,
+                        ),
+                        reverseCurve: Curves.easeInCubic,
+                      ),
+                      child: SlideTransition(
+                        position:
+                            Tween<Offset>(
+                              begin: const Offset(0, -0.16),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                                reverseCurve: Curves.easeInCubic,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Divider(color: Color(0xFFF1D6E0)),
-                          // Timer SOS card
-                          Card(
-                            color: const Color(0xFFFFF6F9),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: _isTimerActive
-                                    ? Colors.orange
-                                    : Colors.grey,
-                                child: Icon(
-                                  _isTimerActive
-                                      ? Icons.timer
-                                      : Icons.timer_off,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              title: const Text(
-                                'Timer SOS',
-                                style: TextStyle(color: Color(0xFF202A3B)),
-                              ),
-                              subtitle: Text(
-                                _isTimerActive
-                                    ? 'Active - Timer running'
-                                    : 'Start Safety Timer',
-                                style: TextStyle(
-                                  color: _isTimerActive
-                                      ? Colors.orange
-                                      : Color(0xFF667085),
-                                ),
-                              ),
-                              trailing: ElevatedButton(
-                                onPressed: () async {
-                                  Navigator.pop(context);
-                                  if (_isTimerActive) {
-                                    await _timerSOSService?.cancelTimer();
-                                    setState(() => _isTimerActive = false);
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('⏱️ Timer Cancelled'),
-                                          backgroundColor: Colors.orange,
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.94, end: 1).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutBack,
+                              reverseCurve: Curves.easeInCubic,
+                            ),
+                          ),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => Navigator.pop(context),
+                            child: Material(
+                              color: const Color(0xFAFFF9FB),
+                              child: SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    22,
+                                    24,
+                                    26,
+                                  ),
+                                  child: ListTileTheme(
+                                    data: ListTileThemeData(
+                                      minVerticalPadding: 10,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 2,
+                                          ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      tileColor: const Color(0xFFFFF1F6),
+                                      textColor: const Color(0xFF202A3B),
+                                    ),
+                                    child: ListView(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.shield_outlined,
+                                              color: Color(0xFFD9366E),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            const Expanded(
+                                              child: Text(
+                                                'Safety Menu',
+                                                style: TextStyle(
+                                                  fontSize: 26,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF202A3B),
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'Close',
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 28,
+                                              ),
+                                              style: IconButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xFFF8DEE7,
+                                                ),
+                                                foregroundColor: const Color(
+                                                  0xFFD9366E,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      );
-                                    }
-                                  } else {
-                                    _showTimerDialog();
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _isTimerActive
-                                      ? Colors.red
-                                      : Colors.orange,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: Text(
-                                  _isTimerActive ? 'Cancel' : 'Start',
+                                        const SizedBox(height: 18),
+                                        const Divider(color: Color(0xFFF1D6E0)),
+                                        const SizedBox(height: 8),
+                                        // Timer SOS card
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 0,
+                                          child: Card(
+                                            color: const Color(0xFFFFF6F9),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            child: ListTile(
+                                              leading: CircleAvatar(
+                                                backgroundColor: _isTimerActive
+                                                    ? Colors.orange
+                                                    : Colors.grey,
+                                                child: Icon(
+                                                  _isTimerActive
+                                                      ? Icons.timer
+                                                      : Icons.timer_off,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              title: const Text(
+                                                'Timer SOS',
+                                                style: TextStyle(
+                                                  color: Color(0xFF202A3B),
+                                                ),
+                                              ),
+                                              subtitle: Text(
+                                                _isTimerActive
+                                                    ? 'Active - Timer running'
+                                                    : 'Start Safety Timer',
+                                                style: TextStyle(
+                                                  color: _isTimerActive
+                                                      ? Colors.orange
+                                                      : Color(0xFF667085),
+                                                ),
+                                              ),
+                                              trailing: ElevatedButton(
+                                                onPressed: () async {
+                                                  Navigator.pop(context);
+                                                  if (_isTimerActive) {
+                                                    await _timerSOSService
+                                                        ?.cancelTimer();
+                                                    setState(
+                                                      () => _isTimerActive =
+                                                          false,
+                                                    );
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            '⏱️ Timer Cancelled',
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.orange,
+                                                        ),
+                                                      );
+                                                    }
+                                                  } else {
+                                                    _showTimerDialog();
+                                                  }
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      _isTimerActive
+                                                      ? Colors.red
+                                                      : Colors.orange,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                child: Text(
+                                                  _isTimerActive
+                                                      ? 'Cancel'
+                                                      : 'Start',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 1,
+                                          child: SwitchListTile(
+                                            secondary: Icon(
+                                              Icons.mic,
+                                              color: _isVoiceActive
+                                                  ? Colors.green
+                                                  : const Color(0xFF98A2B3),
+                                            ),
+                                            title: const Text(
+                                              'Voice Commands',
+                                              style: TextStyle(
+                                                color: Color(0xFF202A3B),
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              _isVoiceActive
+                                                  ? 'Listening for help words'
+                                                  : 'Tap to enable',
+                                              style: const TextStyle(
+                                                color: Color(0xFF667085),
+                                              ),
+                                            ),
+                                            value: _isVoiceActive,
+                                            onChanged: (value) async {
+                                              Navigator.pop(context);
+                                              await _toggleVoiceCommands();
+                                            },
+                                          ),
+                                        ),
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 2,
+                                          child: ListTile(
+                                            leading: const Icon(
+                                              Icons.people,
+                                              color: Colors.blueAccent,
+                                            ),
+                                            title: const Text(
+                                              'Emergency Contacts',
+                                              style: TextStyle(
+                                                color: Color(0xFF202A3B),
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/contacts',
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 3,
+                                          child: ListTile(
+                                            leading: const Icon(
+                                              Icons.security,
+                                              color: Colors.pinkAccent,
+                                            ),
+                                            title: const Text(
+                                              'Safe Zones',
+                                              style: TextStyle(
+                                                color: Color(0xFF202A3B),
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/safe_zones',
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 4,
+                                          child: ListTile(
+                                            leading: const Icon(
+                                              Icons.video_library,
+                                              color: Colors.orangeAccent,
+                                            ),
+                                            title: const Text(
+                                              'View Recordings',
+                                              style: TextStyle(
+                                                color: Color(0xFF202A3B),
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/recordings',
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 5,
+                                          child: ListTile(
+                                            leading: const Icon(
+                                              Icons.person,
+                                              color: Colors.greenAccent,
+                                            ),
+                                            title: const Text(
+                                              'Edit Profile',
+                                              style: TextStyle(
+                                                color: Color(0xFF202A3B),
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/profile',
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        Divider(color: Color(0xFFF1D6E0)),
+                                        _MenuEntrance(
+                                          animation: animation,
+                                          index: 6,
+                                          child: ListTile(
+                                            leading: const Icon(
+                                              Icons.logout,
+                                              color: Colors.redAccent,
+                                            ),
+                                            title: const Text(
+                                              'Logout',
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            onTap: () async {
+                                              Navigator.pop(context);
+                                              await auth.logout();
+                                              Navigator.pushReplacementNamed(
+                                                context,
+                                                '/login',
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          SwitchListTile(
-                            secondary: Icon(
-                              Icons.mic,
-                              color: _isVoiceActive
-                                  ? Colors.green
-                                  : const Color(0xFF98A2B3),
-                            ),
-                            title: const Text(
-                              'Voice Commands',
-                              style: TextStyle(color: Color(0xFF202A3B)),
-                            ),
-                            subtitle: Text(
-                              _isVoiceActive
-                                  ? 'Listening for help words'
-                                  : 'Tap to enable',
-                              style: const TextStyle(color: Color(0xFF667085)),
-                            ),
-                            value: _isVoiceActive,
-                            onChanged: (value) async {
-                              Navigator.pop(context);
-                              await _toggleVoiceCommands();
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.people,
-                              color: Colors.blueAccent,
-                            ),
-                            title: const Text(
-                              'Emergency Contacts',
-                              style: TextStyle(color: Color(0xFF202A3B)),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/contacts');
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.security,
-                              color: Colors.pinkAccent,
-                            ),
-                            title: const Text(
-                              'Safe Zones',
-                              style: TextStyle(color: Color(0xFF202A3B)),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/safe_zones');
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.video_library,
-                              color: Colors.orangeAccent,
-                            ),
-                            title: const Text(
-                              'View Recordings',
-                              style: TextStyle(color: Color(0xFF202A3B)),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/recordings');
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.person,
-                              color: Colors.greenAccent,
-                            ),
-                            title: const Text(
-                              'Edit Profile',
-                              style: TextStyle(color: Color(0xFF202A3B)),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/profile');
-                            },
-                          ),
-                          Divider(color: Color(0xFFF1D6E0)),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.logout,
-                              color: Colors.redAccent,
-                            ),
-                            title: const Text(
-                              'Logout',
-                              style: TextStyle(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            onTap: () async {
-                              Navigator.pop(context);
-                              await auth.logout();
-                              Navigator.pushReplacementNamed(context, '/login');
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -1431,6 +1592,42 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MenuEntrance extends StatelessWidget {
+  final Animation<double> animation;
+  final int index;
+  final Widget child;
+
+  const _MenuEntrance({
+    required this.animation,
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start = (0.12 + index * 0.075).clamp(0.0, 0.72);
+    final itemAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Interval(start, 1, curve: Curves.easeOutBack),
+      reverseCurve: const Interval(0, 0.76, curve: Curves.easeInCubic),
+    );
+
+    return FadeTransition(
+      opacity: itemAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.22),
+          end: Offset.zero,
+        ).animate(itemAnimation),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: child,
+        ),
       ),
     );
   }
