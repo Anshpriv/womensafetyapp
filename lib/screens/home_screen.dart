@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // AI-Based Contextual Threat & Risk Detection
   final AIRiskService _aiRiskService = AIRiskService(
-    inferenceUrl: String.fromEnvironment('AI_RISK_API_URL'),
+    inferenceUrl: const String.fromEnvironment('AI_RISK_API_URL'),
   );
   AIRiskResult? _lastAIRiskResult;
   bool _analyzingRisk = false;

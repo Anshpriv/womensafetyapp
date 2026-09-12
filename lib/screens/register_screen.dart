@@ -11,6 +11,11 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  static const _ink = Color(0xFF1B263B);
+  static const _pink = Color(0xFFE91E63);
+  static const _softPink = Color(0xFFFFF1F6);
+  static const _borderPink = Color(0xFFF8D7E5);
+
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -38,9 +43,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pushReplacementNamed(context, "/profile");
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Register failed: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Register failed: $e")));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -49,80 +54,117 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFFFAFC),
       body: SafeArea(
-        child: Stack(
-          children: [
-            // Background gradient
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF080013), Color(0xFF311543)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 560,
+                  minHeight: constraints.maxHeight - 38,
                 ),
-              ),
-            ),
-
-            // Registration Lottie animation
-            Align(
-              alignment: const Alignment(0, -0.55),
-              child: SizedBox(
-                height: 260,
-                child: Lottie.asset(
-                  'assets/images/Registration_animation.json', // ✅ new JSON
-                  repeat: true,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-
-            // Dark overlay
-            Container(color: Colors.black.withOpacity(0.40)),
-
-            // App title at top
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                children: [
-                  const Icon(Icons.shield, color: Colors.pinkAccent, size: 26),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Shrimati Setu',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.1,
-                    ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 22),
+                      Container(
+                        height: constraints.maxHeight < 760 ? 280 : 360,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: _softPink,
+                          borderRadius: BorderRadius.circular(38),
+                          border: Border.all(color: _borderPink),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x12E91E63),
+                              blurRadius: 30,
+                              offset: Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(37),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Lottie.asset(
+                              'assets/images/Registration_animation.json',
+                              repeat: true,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      const SizedBox(height: 22),
+                      _buildRegisterCard(context),
+                    ],
                   ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Women Safety',
-                      style: TextStyle(color: Colors.white70, fontSize: 11),
-                    ),
-                  )
-                ],
+                ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Register card at bottom
-            Align(
-              alignment: const Alignment(0, 0.65),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _buildRegisterCard(context),
+  Widget _buildHeader() {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: _borderPink),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x20E91E63),
+                blurRadius: 26,
+                offset: Offset(0, 9),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                height: 52,
+                width: 52,
+                decoration: BoxDecoration(
+                  color: _pink,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x40E91E63),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.shield_outlined,
+                  color: Colors.white,
+                  size: 29,
+                ),
+              ),
+              const SizedBox(width: 20),
+              const Text(
+                'Shrimati Setu',
+                style: TextStyle(
+                  color: _ink,
+                  fontSize: 25,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.7,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -130,16 +172,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildRegisterCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.18)),
-        boxShadow: [
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: _borderPink),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.6),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
+            color: Color(0x14E91E63),
+            blurRadius: 28,
+            offset: Offset(0, 12),
           ),
         ],
       ),
@@ -150,42 +192,65 @@ class _RegisterScreenState extends State<RegisterScreen> {
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                "Create your safety account.",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Create an account',
+                    style: TextStyle(
+                      color: _ink,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.7,
                     ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Set up your trusted safety profile.',
+                    style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 24),
 
             TextFormField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('Email'),
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w500),
+              decoration: _inputDecoration(
+                'Email address',
+                Icons.alternate_email_rounded,
+              ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return "Enter email";
                 if (!v.contains("@")) return "Enter valid email";
                 return null;
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             TextFormField(
               controller: _password,
               obscureText: _obscure,
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('Password').copyWith(
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscure ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.white70,
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w500),
+              decoration:
+                  _inputDecoration(
+                    'Password',
+                    Icons.lock_outline_rounded,
+                  ).copyWith(
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility,
+                        color: const Color(0xFF64748B),
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
                   ),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                ),
-              ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return "Enter password";
                 if (v.length < 6) return "Min 6 characters";
@@ -197,14 +262,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             SizedBox(
               width: double.infinity,
-              height: 45,
+              height: 54,
               child: ElevatedButton(
                 onPressed: _loading ? null : _register,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.pinkAccent,
+                  backgroundColor: _pink,
                   foregroundColor: Colors.white,
+                  elevation: 0,
+                  disabledBackgroundColor: const Color(0xFFF8A7C2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(17),
                   ),
                 ),
                 child: _loading
@@ -219,28 +286,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     : const Text(
                         "Create Account",
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
                         ),
                       ),
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 18),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
                   "Already have an account? ",
-                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
                 ),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: const Text(
                     "Login",
                     style: TextStyle(
-                      color: Colors.pinkAccent,
+                      color: _pink,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -254,21 +321,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
+  InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+      hintText: label,
+      hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+      prefixIcon: Icon(icon, color: _pink, size: 21),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.08),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      fillColor: const Color(0xFFFFF8FA),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
+        borderRadius: BorderRadius.circular(17),
+        borderSide: const BorderSide(color: _borderPink),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Colors.pinkAccent, width: 1.6),
+        borderRadius: BorderRadius.circular(17),
+        borderSide: const BorderSide(color: _pink, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(17),
+        borderSide: const BorderSide(color: Color(0xFFDC2626)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(17),
+        borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.6),
       ),
     );
   }
