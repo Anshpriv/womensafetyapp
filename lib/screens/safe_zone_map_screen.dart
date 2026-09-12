@@ -17,7 +17,8 @@ class SafeZoneMapScreen extends StatefulWidget {
   State<SafeZoneMapScreen> createState() => _SafeZoneMapScreenState();
 }
 
-class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTickerProviderStateMixin {
+class _SafeZoneMapScreenState extends State<SafeZoneMapScreen>
+    with SingleTickerProviderStateMixin {
   GoogleMapController? _mapController;
   LatLng? _selectedLocation;
   double _radius = 1000.0; // Default 1000m
@@ -42,11 +43,15 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
       duration: const Duration(milliseconds: 800),
     );
 
-    _radiusAnimation = Tween<double>(begin: 0, end: _radius).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
-    )..addListener(() {
-        setState(() {});
-      });
+    _radiusAnimation =
+        Tween<double>(begin: 0, end: _radius).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutBack,
+          ),
+        )..addListener(() {
+          setState(() {});
+        });
 
     _animationController.forward();
   }
@@ -69,9 +74,13 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
   void _onRadiusChanged(double value) {
     setState(() {
       _radius = value;
-      _radiusAnimation = Tween<double>(begin: _radiusAnimation.value, end: _radius).animate(
-        CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-      );
+      _radiusAnimation =
+          Tween<double>(begin: _radiusAnimation.value, end: _radius).animate(
+            CurvedAnimation(
+              parent: _animationController,
+              curve: Curves.easeOut,
+            ),
+          );
     });
     _animationController.reset();
     _animationController.forward();
@@ -79,9 +88,9 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
 
   void _saveZone() {
     if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a zone name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a zone name')));
       return;
     }
 
@@ -126,23 +135,29 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
           circleId: const CircleId('zone_circle'),
           center: _selectedLocation!,
           radius: _radiusAnimation.value,
-          fillColor: Colors.blueAccent.withOpacity(0.3),
-          strokeColor: Colors.blue,
+          fillColor: const Color(0xFFD9366E).withOpacity(0.18),
+          strokeColor: const Color(0xFFD9366E),
           strokeWidth: 2,
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF090014),
+      backgroundColor: const Color(0xFFFFF8FB),
       appBar: AppBar(
-        title: const Text('Create Safe Zone', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.transparent,
+        title: const Text(
+          'Create Safe Zone',
+          style: TextStyle(
+            color: Color(0xFF202A3B),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Color(0xFF202A3B)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.check, color: Colors.greenAccent),
+            icon: const Icon(Icons.check, color: Color(0xFFD9366E)),
             onPressed: _saveZone,
           ),
         ],
@@ -153,20 +168,20 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _nameController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Color(0xFF202A3B)),
               decoration: InputDecoration(
                 labelText: 'Zone Name (e.g., College, Home)',
-                labelStyle: const TextStyle(color: Colors.white70),
+                labelStyle: const TextStyle(color: Color(0xFF667085)),
                 enabledBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.white24),
+                  borderSide: const BorderSide(color: Color(0xFFF1D6E0)),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.pinkAccent),
+                  borderSide: const BorderSide(color: Color(0xFFD9366E)),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 filled: true,
-                fillColor: const Color(0xFF130922),
+                fillColor: Colors.white,
               ),
             ),
           ),
@@ -175,7 +190,7 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: const Color(0xFFF1D6E0)),
               ),
               clipBehavior: Clip.antiAlias,
               child: GoogleMap(
@@ -194,7 +209,7 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
           Container(
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(
-              color: Color(0xFF130922),
+              color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
             ),
             child: Column(
@@ -202,21 +217,31 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Radius', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                    Text('${_radius.toInt()} m', style: const TextStyle(color: Colors.pinkAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Radius',
+                      style: TextStyle(color: Color(0xFF202A3B), fontSize: 16),
+                    ),
+                    Text(
+                      '${_radius.toInt()} m',
+                      style: const TextStyle(
+                        color: Color(0xFFD9366E),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 Slider(
                   value: _radius,
                   min: 100,
                   max: 5000,
-                  activeColor: Colors.pinkAccent,
-                  inactiveColor: Colors.white24,
+                  activeColor: const Color(0xFFD9366E),
+                  inactiveColor: const Color(0xFFF1D6E0),
                   onChanged: _onRadiusChanged,
                 ),
                 const Text(
                   'Tap on the map to set location or drag the marker.',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(color: Color(0xFF667085), fontSize: 12),
                 ),
                 const SizedBox(height: 10),
                 SizedBox(
@@ -224,11 +249,20 @@ class _SafeZoneMapScreenState extends State<SafeZoneMapScreen> with SingleTicker
                   child: ElevatedButton(
                     onPressed: _saveZone,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.pinkAccent,
+                      backgroundColor: const Color(0xFFD9366E),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                    child: const Text('Save Safe Zone', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Save Safe Zone',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ],

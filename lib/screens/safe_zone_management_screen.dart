@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -13,10 +14,12 @@ class SafeZoneManagementScreen extends StatefulWidget {
   const SafeZoneManagementScreen({super.key});
 
   @override
-  State<SafeZoneManagementScreen> createState() => _SafeZoneManagementScreenState();
+  State<SafeZoneManagementScreen> createState() =>
+      _SafeZoneManagementScreenState();
 }
 
-class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> with SingleTickerProviderStateMixin {
+class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late SafeZoneService _safeZoneService;
   LatLng? _currentLocation;
@@ -25,22 +28,29 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
+
     final auth = context.read<AuthService>();
     final user = auth.currentUser;
     _safeZoneService = SafeZoneService(guardianId: user?.uid ?? '');
-    
+
     _getCurrentLocation();
   }
 
   Future<void> _getCurrentLocation() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final locationRequest = Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final position = kIsWeb
+          ? await locationRequest.timeout(const Duration(seconds: 8))
+          : await locationRequest;
+      if (!mounted) return;
       setState(() {
         _currentLocation = LatLng(position.latitude, position.longitude);
       });
     } catch (e) {
       debugPrint("Error getting location: $e");
+      if (!mounted) return;
       setState(() {
         _currentLocation = const LatLng(18.5204, 73.8567); // Default to Pune
       });
@@ -55,11 +65,12 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
 
   void _addNewZone() async {
     if (_currentLocation == null) return;
-    
+
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SafeZoneMapScreen(initialLocation: _currentLocation!),
+        builder: (context) =>
+            SafeZoneMapScreen(initialLocation: _currentLocation!),
       ),
     );
 
@@ -77,7 +88,9 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
       );
       await _safeZoneService.addSafeZone(newZone);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Safe Zone Added')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Safe Zone Added')));
       }
     }
   }
@@ -85,38 +98,50 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF090014),
+      backgroundColor: const Color(0xFFFFF8FB),
       appBar: AppBar(
-        title: const Text('Safe Zone Management', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        title: const Text(
+          'Safe Zone Management',
+          style: TextStyle(
+            color: Color(0xFF202A3B),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Color(0xFF202A3B)),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.pinkAccent,
-          labelColor: Colors.pinkAccent,
-          unselectedLabelColor: Colors.white54,
+          indicatorColor: const Color(0xFFD9366E),
+          labelColor: const Color(0xFFD9366E),
+          unselectedLabelColor: const Color(0xFF667085),
           tabs: const [
             Tab(icon: Icon(Icons.security), text: 'Safe Zones'),
-            Tab(icon: Icon(Icons.notifications_active), text: 'Boundary Alerts'),
+            Tab(
+              icon: Icon(Icons.notifications_active),
+              text: 'Boundary Alerts',
+            ),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildSafeZonesTab(),
-          _buildAlertsTab(),
-        ],
+        children: [_buildSafeZonesTab(), _buildAlertsTab()],
       ),
-      floatingActionButton: _tabController.index == 0
-          ? FloatingActionButton.extended(
-              onPressed: _addNewZone,
-              backgroundColor: Colors.pinkAccent,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Add Zone', style: TextStyle(color: Colors.white)),
-            )
-          : null,
+      floatingActionButton: AnimatedBuilder(
+        animation: _tabController,
+        builder: (context, child) => _tabController.index == 0
+            ? FloatingActionButton.extended(
+                onPressed: _addNewZone,
+                backgroundColor: const Color(0xFFD9366E),
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  'Add Zone',
+                  style: TextStyle(color: Colors.white),
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
     );
   }
 
@@ -125,16 +150,24 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
       stream: _safeZoneService.getSafeZones(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Colors.pinkAccent));
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFFD9366E)),
+          );
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+          return _buildEmptyState(
+            'Unable to load safe zones.',
+            Icons.cloud_off_rounded,
+          );
         }
 
         final zones = snapshot.data ?? [];
-        
+
         if (zones.isEmpty) {
-          return _buildEmptyState('No Safe Zones configured.', Icons.location_off);
+          return _buildEmptyState(
+            'No Safe Zones configured.',
+            Icons.location_off,
+          );
         }
 
         return ListView.builder(
@@ -143,60 +176,118 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
           itemBuilder: (context, index) {
             final zone = zones[index];
             return Card(
-              color: const Color(0xFF130922),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+                side: const BorderSide(color: Color(0xFFF1D6E0)),
+              ),
               margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: CircleAvatar(
-                  backgroundColor: zone.active ? Colors.blueAccent.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
-                  child: Icon(Icons.location_on, color: zone.active ? Colors.blueAccent : Colors.grey),
-                ),
-                title: Text(zone.zoneName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text('Radius: ${zone.radius.toInt()}m', style: const TextStyle(color: Colors.white54)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 12, 10),
+                child: Column(
                   children: [
-                    Switch(
-                      value: zone.active,
-                      activeColor: Colors.pinkAccent,
-                      onChanged: (val) => _safeZoneService.toggleSafeZone(zone.id, val),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SafeZoneMapScreen(
-                              initialLocation: LatLng(zone.latitude, zone.longitude),
-                              initialName: zone.zoneName,
-                              initialRadius: zone.radius,
-                            ),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: zone.active
+                              ? const Color(0xFFFFE7EF)
+                              : Colors.grey.withOpacity(0.12),
+                          child: Icon(
+                            Icons.location_on,
+                            color: zone.active
+                                ? const Color(0xFFD9366E)
+                                : Colors.grey,
                           ),
-                        );
-                        if (result != null) {
-                          final updatedZone = SafeZone(
-                            id: zone.id,
-                            childId: zone.childId,
-                            guardianId: zone.guardianId,
-                            zoneName: result['name'],
-                            latitude: result['latitude'],
-                            longitude: result['longitude'],
-                            radius: result['radius'],
-                            active: zone.active,
-                            createdAt: zone.createdAt,
-                          );
-                          await _safeZoneService.updateSafeZone(updatedZone);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Safe Zone Updated')));
-                          }
-                        }
-                      },
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                zone.zoneName,
+                                style: const TextStyle(
+                                  color: Color(0xFF202A3B),
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Radius: ${zone.radius.toInt()}m',
+                                style: const TextStyle(
+                                  color: Color(0xFF667085),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.redAccent),
-                      onPressed: () => _safeZoneService.deleteSafeZone(zone.id),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: Color(0xFFF1D6E0)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Switch(
+                          value: zone.active,
+                          activeColor: const Color(0xFFD9366E),
+                          onChanged: (val) =>
+                              _safeZoneService.toggleSafeZone(zone.id, val),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            color: Colors.blueAccent,
+                          ),
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SafeZoneMapScreen(
+                                  initialLocation: LatLng(
+                                    zone.latitude,
+                                    zone.longitude,
+                                  ),
+                                  initialName: zone.zoneName,
+                                  initialRadius: zone.radius,
+                                ),
+                              ),
+                            );
+                            if (result != null) {
+                              final updatedZone = SafeZone(
+                                id: zone.id,
+                                childId: zone.childId,
+                                guardianId: zone.guardianId,
+                                zoneName: result['name'],
+                                latitude: result['latitude'],
+                                longitude: result['longitude'],
+                                radius: result['radius'],
+                                active: zone.active,
+                                createdAt: zone.createdAt,
+                              );
+                              await _safeZoneService.updateSafeZone(
+                                updatedZone,
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Safe Zone Updated'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () =>
+                              _safeZoneService.deleteSafeZone(zone.id),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -213,22 +304,30 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
       stream: _safeZoneService.getBoundaryAlerts(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Colors.pinkAccent));
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFFD9366E)),
+          );
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+          return _buildEmptyState(
+            'Unable to load boundary alerts.',
+            Icons.cloud_off_rounded,
+          );
         }
 
         final alerts = snapshot.data ?? [];
-        
+
         if (alerts.isEmpty) {
-          return _buildEmptyState('No recent boundary alerts.', Icons.notifications_none);
+          return _buildEmptyState(
+            'No recent boundary alerts.',
+            Icons.notifications_none,
+          );
         }
 
         return Column(
           children: [
             _buildRealTimeStatus(alerts),
-            const Divider(color: Colors.white24, height: 1),
+            const Divider(color: Color(0xFFF1D6E0), height: 1),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -237,26 +336,30 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
                   final alert = alerts[index];
                   final isEntry = alert.type == 'entered';
                   final timeStr = DateFormat('hh:mm a').format(alert.timestamp);
-                  
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF130922),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white10),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFF1D6E0)),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: isEntry ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                            color: isEntry
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.red.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             isEntry ? Icons.login : Icons.logout,
-                            color: isEntry ? Colors.greenAccent : Colors.redAccent,
+                            color: isEntry
+                                ? Colors.greenAccent
+                                : Colors.redAccent,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -266,12 +369,18 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
                             children: [
                               Text(
                                 '$timeStr → ${isEntry ? 'Entered' : 'Exited'} ${alert.zoneName}',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Color(0xFF202A3B),
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Child: ${alert.childName}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Color(0xFF667085),
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -302,7 +411,14 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Real-Time Status', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Real-Time Status',
+            style: TextStyle(
+              color: Color(0xFF202A3B),
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 12),
           ...latestAlertPerZone.values.map((alert) {
             final isInside = alert.type == 'entered';
@@ -318,7 +434,7 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
                   const SizedBox(width: 8),
                   Text(
                     '${alert.zoneName}: ',
-                    style: const TextStyle(color: Colors.white70),
+                    style: const TextStyle(color: Color(0xFF667085)),
                   ),
                   Text(
                     isInside ? '🟢 Inside Boundary' : '🔴 Outside Boundary',
@@ -341,9 +457,19 @@ class _SafeZoneManagementScreenState extends State<SafeZoneManagementScreen> wit
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: Colors.white24),
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFEAF1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 52, color: Color(0xFFD9366E)),
+          ),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(color: Colors.white54, fontSize: 16)),
+          Text(
+            message,
+            style: const TextStyle(color: Color(0xFF667085), fontSize: 16),
+          ),
         ],
       ),
     );
