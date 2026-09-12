@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
@@ -21,8 +22,9 @@ class ProfileSetupScreen extends StatefulWidget {
 }
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
-  static const MethodChannel _deviceStatsChannel =
-      MethodChannel('device_stats_channel');
+  static const MethodChannel _deviceStatsChannel = MethodChannel(
+    'device_stats_channel',
+  );
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -75,6 +77,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     _noteController.text = (profile?['emergencyNote'] ?? '').toString();
     _photoUrl = profile?['photoUrl']?.toString();
 
+    if (kIsWeb) {
+      if (!mounted) return;
+      setState(() => _initialLoading = false);
+      unawaited(_startLiveStats());
+      return;
+    }
+
     await _startLiveStats();
 
     if (!mounted) return;
@@ -82,8 +91,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _startLiveStats() async {
-    await Permission.locationWhenInUse.request();
-    await Permission.phone.request();
+    if (!kIsWeb) {
+      await Permission.locationWhenInUse.request();
+      await Permission.phone.request();
+    }
 
     await _refreshDeviceStats();
     await _refreshCurrentLocation();
@@ -95,16 +106,17 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     );
 
     _positionSubscription?.cancel();
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 5,
-      ),
-    ).listen((position) async {
-      _currentPosition = position;
-      await _reverseGeocode(position);
-      if (mounted) setState(() {});
-    });
+    _positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.best,
+            distanceFilter: 5,
+          ),
+        ).listen((position) async {
+          _currentPosition = position;
+          await _reverseGeocode(position);
+          if (mounted) setState(() {});
+        });
   }
 
   Future<void> _refreshDeviceStats() async {
@@ -120,9 +132,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   Future<void> _refreshCurrentLocation() async {
     try {
-      final position = await Geolocator.getCurrentPosition(
+      final locationRequest = Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.best,
       );
+      final position = kIsWeb
+          ? await locationRequest.timeout(const Duration(seconds: 8))
+          : await locationRequest;
       _currentPosition = position;
       await _reverseGeocode(position);
       if (mounted) setState(() {});
@@ -176,7 +191,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       }
 
       final file = File(picked.path);
-      final downloadUrl = await StorageService(uid: user.uid).uploadProfilePhoto(file);
+      final downloadUrl = await StorageService(
+        uid: user.uid,
+      ).uploadProfilePhoto(file);
 
       if (!mounted) return;
       setState(() {
@@ -248,9 +265,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _savingProfile = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Failed to save profile: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Failed to save profile: $e')));
     }
   }
 
@@ -258,15 +275,22 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     required IconData icon,
     required String title,
     required String value,
-    Color color = Colors.white,
+    Color color = const Color(0xFFD9366E),
     int valueMaxLines = 2,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B0E2E),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFF1D6E0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14D9366E),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,7 +299,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           const SizedBox(height: 12),
           Text(
             title,
-            style: const TextStyle(color: Colors.white60, fontSize: 12),
+            style: const TextStyle(color: Color(0xFF667085), fontSize: 12),
           ),
           const SizedBox(height: 6),
           Expanded(
@@ -284,7 +308,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               maxLines: valueMaxLines,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Colors.white,
+                color: Color(0xFF202A3B),
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 height: 1.2,
@@ -298,12 +322,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const background = Color(0xFF090014);
+    const background = Color(0xFFFFF8FB);
 
     if (_initialLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final rawSpeedKmh = ((_currentPosition?.speed ?? 0) * 3.6).clamp(0, 999);
@@ -311,8 +333,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         rawSpeedKmh < 1 || (_currentPosition?.accuracy ?? 100) > 25;
     final speedKmh = isLikelyStationary ? 0.0 : rawSpeedKmh;
     final batteryLevel = _deviceStats['batteryLevel']?.toString() ?? '--';
-    final charging = (_deviceStats['isCharging'] == true) ? 'Charging' : 'Not charging';
-    final signalLabel = _deviceStats['signalLabel']?.toString() ?? 'Unavailable';
+    final charging = (_deviceStats['isCharging'] == true)
+        ? 'Charging'
+        : 'Not charging';
+    final signalLabel =
+        _deviceStats['signalLabel']?.toString() ?? 'Unavailable';
     final connectionType =
         _deviceStats['connectionType']?.toString() ?? 'Unavailable';
     final latitude = _currentPosition?.latitude.toStringAsFixed(5) ?? '--';
@@ -322,7 +347,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       backgroundColor: background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF202A3B),
         elevation: 0,
         title: const Text('My Profile'),
       ),
@@ -342,7 +367,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         children: [
                           CircleAvatar(
                             radius: 56,
-                            backgroundColor: Colors.white12,
+                            backgroundColor: const Color(0xFFFFEDF3),
                             backgroundImage: _photoUrl != null
                                 ? NetworkImage(_photoUrl!)
                                 : null,
@@ -350,13 +375,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                 ? const Icon(
                                     Icons.person,
                                     size: 56,
-                                    color: Colors.white70,
+                                    color: Color(0xFFD9366E),
                                   )
                                 : null,
                           ),
                           CircleAvatar(
                             radius: 18,
-                            backgroundColor: Colors.pinkAccent,
+                            backgroundColor: const Color(0xFFD9366E),
                             child: _uploadingPhoto
                                 ? const SizedBox(
                                     width: 16,
@@ -381,7 +406,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           ? 'Complete your safety profile'
                           : _nameController.text.trim(),
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: Color(0xFF202A3B),
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
@@ -389,7 +414,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     const SizedBox(height: 6),
                     Text(
                       _email ?? 'No email available',
-                      style: const TextStyle(color: Colors.white60),
+                      style: const TextStyle(color: Color(0xFF667085)),
                     ),
                   ],
                 ),
@@ -398,7 +423,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               const Text(
                 'Live Device Status',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF202A3B),
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -416,25 +441,25 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     icon: Icons.battery_full,
                     title: 'Battery',
                     value: '$batteryLevel% • $charging',
-                    color: Colors.greenAccent,
+                    color: const Color(0xFF3AA981),
                   ),
                   _buildStatsCard(
                     icon: Icons.network_cell,
                     title: 'Signal',
                     value: '$signalLabel • $connectionType',
-                    color: Colors.lightBlueAccent,
+                    color: const Color(0xFF5476A8),
                   ),
                   _buildStatsCard(
                     icon: Icons.speed,
                     title: 'Speed',
                     value: '${speedKmh.toStringAsFixed(1)} km/h',
-                    color: Colors.orangeAccent,
+                    color: const Color(0xFFE49A45),
                   ),
                   _buildStatsCard(
                     icon: Icons.my_location,
                     title: 'Coordinates',
                     value: 'Lat: $latitude\nLng: $longitude',
-                    color: Colors.pinkAccent,
+                    color: const Color(0xFFD9366E),
                     valueMaxLines: 3,
                   ),
                 ],
@@ -444,9 +469,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1B0E2E),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white10),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0xFFF1D6E0)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,7 +483,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         Text(
                           'Current Location',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFF202A3B),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -467,7 +492,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     const SizedBox(height: 12),
                     Text(
                       _currentAddress,
-                      style: const TextStyle(color: Colors.white70, height: 1.4),
+                      style: const TextStyle(
+                        color: Color(0xFF667085),
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -476,7 +504,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               const Text(
                 'Profile Details',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF202A3B),
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -514,7 +542,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 child: ElevatedButton(
                   onPressed: _savingProfile ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pinkAccent,
+                    backgroundColor: const Color(0xFFD9366E),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -553,24 +581,24 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Color(0xFF202A3B)),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        prefixIcon: Icon(icon, color: Colors.white70),
+        labelStyle: const TextStyle(color: Color(0xFF667085)),
+        prefixIcon: Icon(icon, color: const Color(0xFFD9366E)),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white10),
+          borderSide: const BorderSide(color: Color(0xFFF1D6E0)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.pinkAccent),
+          borderSide: const BorderSide(color: Color(0xFFD9366E), width: 1.5),
         ),
       ),
     );
