@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -115,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (!kIsWeb && state == AppLifecycleState.resumed) {
       _syncRecordingState();
     }
   }
@@ -951,431 +952,485 @@ class _HomeScreenState extends State<HomeScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    const background = Color(0xFF090014);
-    final accent = Colors.pinkAccent;
+    const background = Color(0xFFFFF8FB);
+    const accent = Color(0xFFD9366E);
+    const ink = Color(0xFF202A3B);
 
     return Scaffold(
       backgroundColor: background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: ink,
         elevation: 0,
-        title: Row(
-          children: [
-            const Icon(Icons.shield, size: 24),
-            const SizedBox(width: 8),
-            const Text(
-              "Shrimati Setu",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-            ),
-            const Spacer(),
-            if (_recordingService.isRecording)
-              const Icon(
-                Icons.fiber_manual_record,
-                color: Colors.redAccent,
-                size: 18,
+        toolbarHeight: 88,
+        automaticallyImplyLeading: false,
+        titleSpacing: 16,
+        title: Container(
+          height: 58,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: const Color(0xFFF1D6E0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1FD9366E),
+                blurRadius: 22,
+                offset: Offset(0, 8),
               ),
-          ],
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFCEAF0),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.shield_outlined, color: accent),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  "Shrimati Setu",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: ink,
+                  ),
+                ),
+              ),
+              if (_recordingService.isRecording)
+                const Icon(
+                  Icons.fiber_manual_record,
+                  color: Colors.redAccent,
+                  size: 18,
+                ),
+            ],
+          ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: const Color(0xFF140624),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                builder: (context) => DraggableScrollableSheet(
-                  initialChildSize: 0.7,
-                  minChildSize: 0.5,
-                  maxChildSize: 0.95,
-                  expand: false,
-                  builder: (context, scrollController) => Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: ListView(
-                      controller: scrollController,
-                      children: [
-                        Row(
-                          children: const [
-                            Icon(Icons.menu, color: Colors.white70),
-                            SizedBox(width: 8),
-                            Text(
-                              'Safety Menu',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+          Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFF1D6E0)),
+              boxShadow: const [
+                BoxShadow(color: Color(0x1FD9366E), blurRadius: 18),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.white,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                  builder: (context) => DraggableScrollableSheet(
+                    initialChildSize: 0.7,
+                    minChildSize: 0.5,
+                    maxChildSize: 0.95,
+                    expand: false,
+                    builder: (context, scrollController) => Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: ListView(
+                        controller: scrollController,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.menu, color: Color(0xFFD9366E)),
+                              SizedBox(width: 8),
+                              Text(
+                                'Safety Menu',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF202A3B),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Divider(color: Color(0xFFF1D6E0)),
+                          // Timer SOS card
+                          Card(
+                            color: const Color(0xFFFFF6F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: _isTimerActive
+                                    ? Colors.orange
+                                    : Colors.grey,
+                                child: Icon(
+                                  _isTimerActive
+                                      ? Icons.timer
+                                      : Icons.timer_off,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              title: const Text(
+                                'Timer SOS',
+                                style: TextStyle(color: Color(0xFF202A3B)),
+                              ),
+                              subtitle: Text(
+                                _isTimerActive
+                                    ? 'Active - Timer running'
+                                    : 'Start Safety Timer',
+                                style: TextStyle(
+                                  color: _isTimerActive
+                                      ? Colors.orange
+                                      : Color(0xFF667085),
+                                ),
+                              ),
+                              trailing: ElevatedButton(
+                                onPressed: () async {
+                                  Navigator.pop(context);
+                                  if (_isTimerActive) {
+                                    await _timerSOSService?.cancelTimer();
+                                    setState(() => _isTimerActive = false);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('⏱️ Timer Cancelled'),
+                                          backgroundColor: Colors.orange,
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    _showTimerDialog();
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _isTimerActive
+                                      ? Colors.red
+                                      : Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: Text(
+                                  _isTimerActive ? 'Cancel' : 'Start',
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Divider(color: Colors.white24),
-                        // Timer SOS card
-                        Card(
-                          color: const Color(0xFF1E0E36),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: _isTimerActive
-                                  ? Colors.orange
-                                  : Colors.grey,
-                              child: Icon(
-                                _isTimerActive ? Icons.timer : Icons.timer_off,
-                                color: Colors.white,
-                              ),
+                          const SizedBox(height: 12),
+                          SwitchListTile(
+                            secondary: Icon(
+                              Icons.mic,
+                              color: _isVoiceActive
+                                  ? Colors.green
+                                  : const Color(0xFF98A2B3),
                             ),
                             title: const Text(
-                              'Timer SOS',
-                              style: TextStyle(color: Colors.white),
+                              'Voice Commands',
+                              style: TextStyle(color: Color(0xFF202A3B)),
                             ),
                             subtitle: Text(
-                              _isTimerActive
-                                  ? 'Active - Timer running'
-                                  : 'Start Safety Timer',
-                              style: TextStyle(
-                                color: _isTimerActive
-                                    ? Colors.orange
-                                    : Colors.white54,
-                              ),
+                              _isVoiceActive
+                                  ? 'Listening for help words'
+                                  : 'Tap to enable',
+                              style: const TextStyle(color: Color(0xFF667085)),
                             ),
-                            trailing: ElevatedButton(
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                if (_isTimerActive) {
-                                  await _timerSOSService?.cancelTimer();
-                                  setState(() => _isTimerActive = false);
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('⏱️ Timer Cancelled'),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  _showTimerDialog();
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isTimerActive
-                                    ? Colors.red
-                                    : Colors.orange,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: Text(_isTimerActive ? 'Cancel' : 'Start'),
+                            value: _isVoiceActive,
+                            onChanged: (value) async {
+                              Navigator.pop(context);
+                              await _toggleVoiceCommands();
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.people,
+                              color: Colors.blueAccent,
                             ),
+                            title: const Text(
+                              'Emergency Contacts',
+                              style: TextStyle(color: Color(0xFF202A3B)),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushNamed(context, '/contacts');
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile(
-                          secondary: Icon(
-                            Icons.mic,
-                            color: _isVoiceActive
-                                ? Colors.green
-                                : Colors.white54,
+                          ListTile(
+                            leading: const Icon(
+                              Icons.security,
+                              color: Colors.pinkAccent,
+                            ),
+                            title: const Text(
+                              'Safe Zones',
+                              style: TextStyle(color: Color(0xFF202A3B)),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushNamed(context, '/safe_zones');
+                            },
                           ),
-                          title: const Text(
-                            'Voice Commands',
-                            style: TextStyle(color: Colors.white),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.video_library,
+                              color: Colors.orangeAccent,
+                            ),
+                            title: const Text(
+                              'View Recordings',
+                              style: TextStyle(color: Color(0xFF202A3B)),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushNamed(context, '/recordings');
+                            },
                           ),
-                          subtitle: Text(
-                            _isVoiceActive
-                                ? 'Listening for help words'
-                                : 'Tap to enable',
-                            style: const TextStyle(color: Colors.white60),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.person,
+                              color: Colors.greenAccent,
+                            ),
+                            title: const Text(
+                              'Edit Profile',
+                              style: TextStyle(color: Color(0xFF202A3B)),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushNamed(context, '/profile');
+                            },
                           ),
-                          value: _isVoiceActive,
-                          onChanged: (value) async {
-                            Navigator.pop(context);
-                            await _toggleVoiceCommands();
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.people,
-                            color: Colors.blueAccent,
-                          ),
-                          title: const Text(
-                            'Emergency Contacts',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/contacts');
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.security,
-                            color: Colors.pinkAccent,
-                          ),
-                          title: const Text(
-                            'Safe Zones',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/safe_zones');
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.video_library,
-                            color: Colors.orangeAccent,
-                          ),
-                          title: const Text(
-                            'View Recordings',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/recordings');
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.person,
-                            color: Colors.greenAccent,
-                          ),
-                          title: const Text(
-                            'Edit Profile',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/profile');
-                          },
-                        ),
-                        Divider(color: Colors.white24),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.logout,
-                            color: Colors.redAccent,
-                          ),
-                          title: const Text(
-                            'Logout',
-                            style: TextStyle(
+                          Divider(color: Color(0xFFF1D6E0)),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.logout,
                               color: Colors.redAccent,
-                              fontWeight: FontWeight.w600,
                             ),
-                          ),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await auth.logout();
-                            Navigator.pushReplacementNamed(context, '/login');
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8, top: 4),
-        child: Column(
-          children: [
-            // Only map card on top
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF130922),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.35),
-                      blurRadius: 18,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _currentPosition == null
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(color: Colors.pinkAccent),
-                            SizedBox(height: 16),
-                            Text(
-                              'Locking on to your location...',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      )
-                    : GoogleMap(
-                        initialCameraPosition: CameraPosition(
-                          target: LatLng(
-                            _currentPosition!.latitude,
-                            _currentPosition!.longitude,
-                          ),
-                          zoom: 16,
-                        ),
-                        markers: _markers,
-                        circles: {
-                          Circle(
-                            circleId: const CircleId('pulse'),
-                            center: LatLng(
-                              _currentPosition!.latitude,
-                              _currentPosition!.longitude,
-                            ),
-                            radius: _pulseAnimation?.value ?? 0,
-                            fillColor: Colors.blueAccent.withOpacity(
-                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(
-                                    0.0,
-                                    1.0,
-                                  ) *
-                                  0.3,
-                            ),
-                            strokeWidth: 1,
-                            strokeColor: Colors.blueAccent.withOpacity(
-                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(
-                                0.0,
-                                1.0,
+                            title: const Text(
+                              'Logout',
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await auth.logout();
+                              Navigator.pushReplacementNamed(context, '/login');
+                            },
                           ),
-                        },
-                        myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
-                        compassEnabled: true,
-                        mapToolbarEnabled: true,
-                        zoomControlsEnabled: false,
-                        onMapCreated: (controller) {
-                          _mapController = controller;
-                          debugPrint('🗺️ Map created successfully');
-                        },
-                      ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _SafetyStatusBanner(
-              isAnalyzing: _analyzingRisk,
-              result: _lastAIRiskResult,
-            ),
-            const SizedBox(height: 10),
-
-            // Bottom controls
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF130922),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    // Record
-                    _BottomAction(
-                      label: _recordingService.isRecording ? 'Stop' : 'Record',
-                      icon: _recordingService.isRecording
-                          ? Icons.stop_circle
-                          : Icons.videocam,
-                      color: _recordingService.isRecording
-                          ? Colors.redAccent
-                          : Colors.white70,
-                      onTap: () async {
-                        if (_recordingService.isRecording) {
-                          await _stopRecording();
-                        } else {
-                          await _startRecording();
-                        }
-                      },
-                    ),
-
-                    // SOS
-                    GestureDetector(
-                      onTap: _manualSOS,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: _sendingSOS ? Colors.grey : accent,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: accent.withOpacity(0.7),
-                                  blurRadius: 25,
-                                  spreadRadius: 3,
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: _sendingSOS
-                                  ? const CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 3,
-                                    )
-                                  : const Text(
-                                      "SOS",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 2,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'SOS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
-
-                    // Call
-                    _BottomAction(
-                      label: 'Call',
-                      icon: Icons.phone,
-                      color: Colors.greenAccent,
-                      onTap: _triggerRealCall,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            color: const Color(0xFFF8EEF2),
+            child: _currentPosition == null
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(color: accent),
+                        SizedBox(height: 16),
+                        Text(
+                          'Locking on to your location...',
+                          style: TextStyle(
+                            color: Color(0xFF667085),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-
-                    // Profile
-                    _BottomAction(
-                      label: 'Profile',
-                      icon: Icons.person,
-                      color: Colors.lightBlueAccent,
-                      onTap: () {
-                        Navigator.pushNamed(context, '/profile');
-                      },
+                  )
+                : GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(
+                        _currentPosition!.latitude,
+                        _currentPosition!.longitude,
+                      ),
+                      zoom: 16,
+                    ),
+                    markers: _markers,
+                    circles: {
+                      Circle(
+                        circleId: const CircleId('pulse'),
+                        center: LatLng(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                        ),
+                        radius: _pulseAnimation?.value ?? 0,
+                        fillColor: accent.withOpacity(
+                          (1.0 - (_pulseController?.value ?? 0.0)).clamp(
+                                0.0,
+                                1.0,
+                              ) *
+                              0.3,
+                        ),
+                        strokeWidth: 1,
+                        strokeColor: accent.withOpacity(
+                          (1.0 - (_pulseController?.value ?? 0.0)).clamp(
+                            0.0,
+                            1.0,
+                          ),
+                        ),
+                      ),
+                    },
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    compassEnabled: true,
+                    mapToolbarEnabled: true,
+                    zoomControlsEnabled: false,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                      debugPrint('🗺️ Map created successfully');
+                    },
+                  ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 12,
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: const Color(0xFFF1D6E0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x260B1220),
+                      blurRadius: 30,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE7CCD6),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SafetyStatusBanner(
+                      isAnalyzing: _analyzingRisk,
+                      result: _lastAIRiskResult,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _BottomAction(
+                          label: _recordingService.isRecording
+                              ? 'Stop'
+                              : 'Record',
+                          icon: _recordingService.isRecording
+                              ? Icons.stop_circle
+                              : Icons.videocam,
+                          color: _recordingService.isRecording
+                              ? Colors.redAccent
+                              : const Color(0xFF667085),
+                          onTap: () async {
+                            if (_recordingService.isRecording) {
+                              await _stopRecording();
+                            } else {
+                              await _startRecording();
+                            }
+                          },
+                        ),
+                        GestureDetector(
+                          onTap: _manualSOS,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 76,
+                                height: 76,
+                                decoration: BoxDecoration(
+                                  color: _sendingSOS ? Colors.grey : accent,
+                                  shape: BoxShape.circle,
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x59D9366E),
+                                      blurRadius: 22,
+                                      offset: Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: _sendingSOS
+                                      ? const CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 3,
+                                        )
+                                      : const Text(
+                                          'SOS',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 2,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              const Text(
+                                'SOS',
+                                style: TextStyle(
+                                  color: ink,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _BottomAction(
+                          label: 'Call',
+                          icon: Icons.phone,
+                          color: const Color(0xFF3AA981),
+                          onTap: _triggerRealCall,
+                        ),
+                        _BottomAction(
+                          label: 'Profile',
+                          icon: Icons.person,
+                          color: const Color(0xFF5476A8),
+                          onTap: () {
+                            Navigator.pushNamed(context, '/profile');
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1393,7 +1448,7 @@ class _SafetyStatusBanner extends StatelessWidget {
     final statusColor = isAnalyzing
         ? Colors.blueAccent
         : switch (level) {
-            AIRiskLevel.lowRisk => Colors.greenAccent,
+            AIRiskLevel.lowRisk => const Color(0xFF3AA981),
             AIRiskLevel.suspicious => Colors.orangeAccent,
             AIRiskLevel.highRisk => Colors.redAccent,
           };
@@ -1410,9 +1465,9 @@ class _SafetyStatusBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF130922),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withOpacity(0.7)),
+        color: const Color(0xFFFFF6F9),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF1D6E0)),
       ),
       child: Row(
         children: [
@@ -1422,7 +1477,7 @@ class _SafetyStatusBanner extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: Colors.white,
+                color: Color(0xFF202A3B),
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -1454,11 +1509,23 @@ class _BottomAction extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 26, color: color),
-          const SizedBox(height: 4),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF2F6),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(height: 6),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            style: const TextStyle(
+              color: Color(0xFF475467),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
