@@ -96,8 +96,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       await Permission.phone.request();
     }
 
-    await _refreshDeviceStats();
-    await _refreshCurrentLocation();
+    if (kIsWeb) {
+      unawaited(_refreshDeviceStats());
+      await _displayLastKnownLocation();
+      await _refreshCurrentLocation();
+    } else {
+      await _refreshDeviceStats();
+      await _refreshCurrentLocation();
+    }
 
     _statsTimer?.cancel();
     _statsTimer = Timer.periodic(
@@ -117,6 +123,19 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           await _reverseGeocode(position);
           if (mounted) setState(() {});
         });
+  }
+
+  Future<void> _displayLastKnownLocation() async {
+    try {
+      final position = await Geolocator.getLastKnownPosition();
+      if (position == null) return;
+
+      _currentPosition = position;
+      if (mounted) setState(() {});
+      unawaited(_reverseGeocode(position).then((_) {
+        if (mounted) setState(() {});
+      }));
+    } catch (_) {}
   }
 
   Future<void> _refreshDeviceStats() async {
@@ -139,10 +158,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           ? await locationRequest.timeout(const Duration(seconds: 8))
           : await locationRequest;
       _currentPosition = position;
+      if (mounted) setState(() {});
       await _reverseGeocode(position);
       if (mounted) setState(() {});
     } catch (_) {
       _currentAddress = 'Location unavailable';
+      if (mounted) setState(() {});
     }
   }
 
@@ -313,6 +334,41 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 fontWeight: FontWeight.w600,
                 height: 1.2,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoordinateValue({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F6),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFD9366E),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF202A3B),
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -496,6 +552,26 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         color: Color(0xFF667085),
                         height: 1.4,
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Divider(color: Color(0xFFF1D6E0), height: 1),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildCoordinateValue(
+                            label: 'LATITUDE',
+                            value: latitude,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildCoordinateValue(
+                            label: 'LONGITUDE',
+                            value: longitude,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
