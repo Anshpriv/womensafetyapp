@@ -1,4 +1,4 @@
-![Shrimati Setu App Banner](lib/7ead03a6-3175-4430-a942-197f1267827f.png)
+![Shrimati Setu App Banner](./lib/7ead03a6-3175-4430-a942-197f1267827f.png)
 
 # 🛡️ Shrimati Setu — Women Safety App
 
@@ -23,7 +23,7 @@ Shrimati Setu is a women safety and emergency response application built using F
 
 ## 🏗️ System Architecture
 
-![System Architecture](lib/a0c703a0-2033-4b92-984c-42e4c13fdd9a.png)
+![System Architecture](./lib/a0c703a0-2033-4b92-984c-42e4c13fdd9a.png)
 
 This architecture represents the complete app flow from device sensors and user interaction to Firebase storage, AI risk analysis, and emergency response actions. It is organized into layered components:
 
