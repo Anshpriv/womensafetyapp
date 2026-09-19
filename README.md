@@ -1,3 +1,5 @@
+![Shrimati Setu App Banner](lib/7ead03a6-3175-4430-a942-197f1267827f.png)
+
 # 🛡️ Shrimati Setu — Women Safety App
 
 A Flutter-based mobile safety application designed to help women respond quickly in emergency situations through SOS alerts, live location sharing, geofencing, voice triggers, and AI-assisted risk detection.
