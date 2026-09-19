@@ -1,4 +1,4 @@
-![Shrimati Setu App Banner](./lib/7ead03a6-3175-4430-a942-197f1267827f.png)
+![Shrimati Setu App Banner](./lib/7ead03a6-3175-4430-a942-197f1267827f-removebg-preview.png)
 
 # 🛡️ Shrimati Setu — Women Safety App
 
