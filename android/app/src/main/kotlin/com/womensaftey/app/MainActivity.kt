@@ -56,7 +56,11 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isDualRecordingSupported" -> {
-                        result.success(DualCameraRecordingActivity.isConcurrentCameraSupported(this))
+                        // ✅ FIX: Always return false. CompositionSettings (used for PiP
+                        // overlay in DualCameraRecordingActivity) is an unstable alpha CameraX
+                        // API that crashes at runtime on most devices including Samsung S23.
+                        // Flutter's single-camera recording path is reliable and sufficient.
+                        result.success(false)
                     }
 
                     "startDualRecording" -> {

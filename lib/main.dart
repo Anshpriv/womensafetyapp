@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -32,7 +33,35 @@ Future<void> main() async {
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycXZpbnlkcXBicWZqdXJpdmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwOTEyNzUsImV4cCI6MjEwMzY2NzI3NX0.lakQoZWJ8O9MaUM6j5P-yL33dJNOQMr6aEJ4he2ZCXQ',
   );
 
+  // ✅ Pre-request ALL permissions upfront so they are already granted
+  // when SOS fires. This prevents the Android crash:
+  // "Can request only one set of permissions at a time"
+  await _requestAllPermissions();
+
   runApp(const WomenSafetyApp());
+}
+
+/// Requests all permissions upfront at launch, one by one (Android requires
+/// sequential requests), so that by the time SOS is triggered all permissions
+/// are already granted and no dialog interrupts the emergency flow.
+Future<void> _requestAllPermissions() async {
+  final permissions = [
+    Permission.camera,
+    Permission.microphone,
+    Permission.location,
+    Permission.locationWhenInUse,
+    Permission.sms,
+    Permission.storage,
+  ];
+
+  for (final permission in permissions) {
+    final status = await permission.status;
+    if (!status.isGranted) {
+      await permission.request();
+    }
+  }
+
+  debugPrint('✅ All permissions pre-requested at startup');
 }
 
 class WomenSafetyApp extends StatelessWidget {

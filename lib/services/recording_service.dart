@@ -17,26 +17,33 @@ class RecordingService {
   bool get isRecording => _isRecording;
   String? get currentVideoPath => _currentVideoPath;
 
-  // ✅ Request permissions with detailed logs
+  // ✅ Request all permissions in a SINGLE batch (prevents Android crash:
+  // "Can request only one set of permissions at a time")
   Future<bool> requestPermissions() async {
-    debugPrint('🔐 Requesting permissions...');
-    
-    final cameraStatus = await Permission.camera.request();
+    debugPrint('🔐 Requesting permissions (batched)...');
+
+    // ✅ Use requestMultiple to show ONE dialog for all permissions
+    final statuses = await [
+      Permission.camera,
+      Permission.microphone,
+      Permission.storage,
+    ].request();
+
+    final cameraStatus = statuses[Permission.camera]!;
+    final micStatus = statuses[Permission.microphone]!;
+    final storageStatus = statuses[Permission.storage]!;
+
     debugPrint('📷 Camera permission: $cameraStatus');
-    
-    final micStatus = await Permission.microphone.request();
     debugPrint('🎤 Microphone permission: $micStatus');
-    
-    final storageStatus = await Permission.storage.request();
     debugPrint('💾 Storage permission: $storageStatus');
 
     final granted = cameraStatus.isGranted && micStatus.isGranted;
     debugPrint('✅ All permissions granted: $granted');
-    
+
     if (!granted) {
       debugPrint('❌ Permission denied - Camera: $cameraStatus, Mic: $micStatus');
     }
-    
+
     return granted;
   }
 
