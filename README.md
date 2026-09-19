@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ Shrimati Setu — Women Safety App
+#  Shrimati Setu — Women Safety App
 
 </div>
 
