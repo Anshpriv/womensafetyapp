@@ -1,4 +1,12 @@
+<div align="center">
+
 # 🛡️ Shrimati Setu — Women Safety App
+
+</div>
+
+<div align="center">
+  <img src="./lib/Free_Orange_iPhone_17_Pro_Mockup_Floating_Minimal_Background_4500x3000-removebg-preview.png" alt="Shrimati Setu App Banner" width="1000" />
+</div>
 
 A Flutter-based mobile safety application designed to help women respond quickly in emergency situations through SOS alerts, live location sharing, geofencing, voice triggers, and AI-assisted risk detection.
 
@@ -21,7 +29,7 @@ Shrimati Setu is a women safety and emergency response application built using F
 
 ## 🏗️ System Architecture
 
-![System Architecture](lib/a0c703a0-2033-4b92-984c-42e4c13fdd9a.png)
+![System Architecture](./lib/a0c703a0-2033-4b92-984c-42e4c13fdd9a.png)
 
 This architecture represents the complete app flow from device sensors and user interaction to Firebase storage, AI risk analysis, and emergency response actions. It is organized into layered components:
 
