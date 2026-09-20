@@ -1,32 +1,40 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:volume_controller/volume_controller.dart';
 import 'sos_service.dart';
 
 class PowerButtonService {
-  final VolumeController _volumeController = VolumeController();
+  final VolumeController? _volumeController = kIsWeb
+      ? null
+      : VolumeController();
   StreamSubscription? _volumeSubscription;
-  
+
   final String uid;
   final Function()? onSOSTriggered;
-  
+
   int _pressCount = 0;
   DateTime _lastPressTime = DateTime.now();
   Timer? _resetTimer;
-  
-  PowerButtonService({
-    required this.uid,
-    this.onSOSTriggered,
-  });
+
+  PowerButtonService({required this.uid, this.onSOSTriggered});
 
   // ✅ Start monitoring power button (via volume buttons)
   Future<void> startMonitoring() async {
+    // The volume-controller plugin has no web implementation. Keep the
+    // mobile SOS shortcut unchanged while avoiding a missing-plugin error in
+    // the browser preview.
+    if (kIsWeb) {
+      debugPrint('Volume-button monitoring is unavailable on web');
+      return;
+    }
+
     try {
       // Listen to volume changes (alternative to power button)
-      _volumeSubscription = _volumeController.listener((volume) {
+      _volumeSubscription = _volumeController!.listener((volume) {
         _handleVolumePress();
       });
-      
+
       debugPrint('✅ Power button monitoring started');
     } catch (e) {
       debugPrint('❌ Power button error: $e');
@@ -36,24 +44,24 @@ class PowerButtonService {
   // ✅ Handle volume button press (simulates power button)
   void _handleVolumePress() {
     final now = DateTime.now();
-    
+
     // Reset if more than 3 seconds since last press
     if (now.difference(_lastPressTime).inSeconds > 3) {
       _pressCount = 0;
     }
-    
+
     _pressCount++;
     _lastPressTime = now;
-    
+
     debugPrint('🔘 Button press: $_pressCount/5');
-    
+
     // Trigger SOS after 5 presses
     if (_pressCount >= 5) {
       debugPrint('🚨 5 PRESSES DETECTED! Triggering SOS');
       _triggerSOS();
       _pressCount = 0;
     }
-    
+
     // Auto-reset after 3 seconds
     _resetTimer?.cancel();
     _resetTimer = Timer(const Duration(seconds: 3), () {

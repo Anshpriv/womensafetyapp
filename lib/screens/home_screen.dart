@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -48,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // AI-Based Contextual Threat & Risk Detection
   final AIRiskService _aiRiskService = AIRiskService(
-    inferenceUrl: String.fromEnvironment('AI_RISK_API_URL'),
+    inferenceUrl: const String.fromEnvironment('AI_RISK_API_URL'),
   );
   AIRiskResult? _lastAIRiskResult;
   bool _analyzingRisk = false;
@@ -115,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (!kIsWeb && state == AppLifecycleState.resumed) {
       _syncRecordingState();
     }
   }
@@ -184,25 +186,139 @@ class _HomeScreenState extends State<HomeScreen>
       await Future.delayed(const Duration(milliseconds: 500));
       setState(() => _isVoiceActive = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🔇 Voice commands OFF'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showVoiceCommandFeedback(enabled: false);
       }
     } else {
       await _voiceService!.startListening();
       setState(() => _isVoiceActive = true);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎤 Voice commands ON'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showVoiceCommandFeedback(enabled: true);
       }
     }
+  }
+
+  void _showVoiceCommandFeedback({required bool enabled}) {
+    BuildContext? feedbackContext;
+
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss voice command status',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 420),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        feedbackContext = dialogContext;
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBFC),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFF1D6E0)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x2ED9366E),
+                        blurRadius: 28,
+                        offset: Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFE5EE),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          enabled ? Icons.mic_rounded : Icons.mic_off_rounded,
+                          color: const Color(0xFFD9366E),
+                          size: 27,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              enabled
+                                  ? 'Voice commands are on'
+                                  : 'Voice commands are off',
+                              style: const TextStyle(
+                                color: Color(0xFF202A3B),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              enabled
+                                  ? 'Listening for your safety commands.'
+                                  : 'Voice listening has been paused.',
+                              style: const TextStyle(
+                                color: Color(0xFF667085),
+                                fontSize: 13,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Dismiss',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close_rounded),
+                        color: const Color(0xFFD9366E),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -0.24),
+              end: Offset.zero,
+            ).animate(curved),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+              alignment: Alignment.topCenter,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+
+    Future<void>.delayed(const Duration(milliseconds: 2600), () {
+      final dialogContext = feedbackContext;
+      if (dialogContext != null && dialogContext.mounted) {
+        Navigator.of(dialogContext).pop();
+      }
+    });
   }
 
   void _startShakeDetection() {
@@ -316,15 +432,27 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _getCurrentLocation() async {
     try {
-      final permission = await Geolocator.checkPermission();
+      final permissionCheck = Geolocator.checkPermission();
+      final permission = kIsWeb
+          ? await permissionCheck.timeout(const Duration(seconds: 3))
+          : await permissionCheck;
       if (permission == LocationPermission.denied) {
-        await Geolocator.requestPermission();
+        final permissionRequest = Geolocator.requestPermission();
+        if (kIsWeb) {
+          await permissionRequest.timeout(const Duration(seconds: 3));
+        } else {
+          await permissionRequest;
+        }
       }
 
-      final position = await Geolocator.getCurrentPosition(
+      final locationRequest = Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+      final position = kIsWeb
+          ? await locationRequest.timeout(const Duration(seconds: 8))
+          : await locationRequest;
 
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         _updateMarker(position);
@@ -338,6 +466,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } catch (e) {
       debugPrint('❌ Location error: $e');
+      if (!mounted) return;
       setState(() {
         _currentPosition = Position(
           latitude: 18.5204,
@@ -951,430 +1080,737 @@ class _HomeScreenState extends State<HomeScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    const background = Color(0xFF090014);
-    final accent = Colors.pinkAccent;
+    const background = Color(0xFFFFF8FB);
+    const accent = Color(0xFFD9366E);
+    const ink = Color(0xFF202A3B);
 
     return Scaffold(
       backgroundColor: background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: ink,
         elevation: 0,
-        title: Row(
-          children: [
-            const Icon(Icons.shield, size: 24),
-            const SizedBox(width: 8),
-            const Text(
-              "Shrimati Setu",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-            ),
-            const Spacer(),
-            if (_recordingService.isRecording)
-              const Icon(
-                Icons.fiber_manual_record,
-                color: Colors.redAccent,
-                size: 18,
+        toolbarHeight: 88,
+        automaticallyImplyLeading: false,
+        titleSpacing: 16,
+        title: Container(
+          height: 58,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: const Color(0xFFF1D6E0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1FD9366E),
+                blurRadius: 22,
+                offset: Offset(0, 8),
               ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: const Color(0xFF140624),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFCEAF0),
+                  shape: BoxShape.circle,
                 ),
-                builder: (context) => DraggableScrollableSheet(
-                  initialChildSize: 0.7,
-                  minChildSize: 0.5,
-                  maxChildSize: 0.95,
-                  expand: false,
-                  builder: (context, scrollController) => Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: ListView(
-                      controller: scrollController,
-                      children: [
-                        Row(
-                          children: const [
-                            Icon(Icons.menu, color: Colors.white70),
-                            SizedBox(width: 8),
-                            Text(
-                              'Safety Menu',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Divider(color: Colors.white24),
-                        // Timer SOS card
-                        Card(
-                          color: const Color(0xFF1E0E36),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: _isTimerActive
-                                  ? Colors.orange
-                                  : Colors.grey,
-                              child: Icon(
-                                _isTimerActive ? Icons.timer : Icons.timer_off,
-                                color: Colors.white,
-                              ),
-                            ),
-                            title: const Text(
-                              'Timer SOS',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            subtitle: Text(
-                              _isTimerActive
-                                  ? 'Active - Timer running'
-                                  : 'Start Safety Timer',
-                              style: TextStyle(
-                                color: _isTimerActive
-                                    ? Colors.orange
-                                    : Colors.white54,
-                              ),
-                            ),
-                            trailing: ElevatedButton(
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                if (_isTimerActive) {
-                                  await _timerSOSService?.cancelTimer();
-                                  setState(() => _isTimerActive = false);
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('⏱️ Timer Cancelled'),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  _showTimerDialog();
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isTimerActive
-                                    ? Colors.red
-                                    : Colors.orange,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: Text(_isTimerActive ? 'Cancel' : 'Start'),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile(
-                          secondary: Icon(
-                            Icons.mic,
-                            color: _isVoiceActive
-                                ? Colors.green
-                                : Colors.white54,
-                          ),
-                          title: const Text(
-                            'Voice Commands',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          subtitle: Text(
-                            _isVoiceActive
-                                ? 'Listening for help words'
-                                : 'Tap to enable',
-                            style: const TextStyle(color: Colors.white60),
-                          ),
-                          value: _isVoiceActive,
-                          onChanged: (value) async {
-                            Navigator.pop(context);
-                            await _toggleVoiceCommands();
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.people,
-                            color: Colors.blueAccent,
-                          ),
-                          title: const Text(
-                            'Emergency Contacts',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/contacts');
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.security,
-                            color: Colors.pinkAccent,
-                          ),
-                          title: const Text(
-                            'Safe Zones',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/safe_zones');
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.video_library,
-                            color: Colors.orangeAccent,
-                          ),
-                          title: const Text(
-                            'View Recordings',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/recordings');
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.person,
-                            color: Colors.greenAccent,
-                          ),
-                          title: const Text(
-                            'Edit Profile',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/profile');
-                          },
-                        ),
-                        Divider(color: Colors.white24),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.logout,
-                            color: Colors.redAccent,
-                          ),
-                          title: const Text(
-                            'Logout',
-                            style: TextStyle(
-                              color: Colors.redAccent,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await auth.logout();
-                            Navigator.pushReplacementNamed(context, '/login');
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
+                child: const Icon(Icons.shield_outlined, color: accent),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  "Shrimati Setu",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: ink,
                   ),
                 ),
-              );
-            },
+              ),
+              if (_recordingService.isRecording)
+                const Icon(
+                  Icons.fiber_manual_record,
+                  color: Colors.redAccent,
+                  size: 18,
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFF1D6E0)),
+              boxShadow: const [
+                BoxShadow(color: Color(0x1FD9366E), blurRadius: 18),
+              ],
+            ),
+            child: IconButton(
+              tooltip: 'Safety Menu',
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                showGeneralDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  barrierLabel: 'Close safety menu',
+                  barrierColor: const Color(0x3D202A3B),
+                  transitionDuration: const Duration(milliseconds: 650),
+                  pageBuilder: (context, animation, secondaryAnimation) => BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: animation,
+                        curve: const Interval(
+                          0,
+                          0.72,
+                          curve: Curves.easeOutCubic,
+                        ),
+                        reverseCurve: Curves.easeInCubic,
+                      ),
+                      child: SlideTransition(
+                        position:
+                            Tween<Offset>(
+                              begin: const Offset(0, -0.16),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                                reverseCurve: Curves.easeInCubic,
+                              ),
+                            ),
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.94, end: 1).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutBack,
+                              reverseCurve: Curves.easeInCubic,
+                            ),
+                          ),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => Navigator.pop(context),
+                            child: Material(
+                              color: const Color(0xFAFFF9FB),
+                              child: SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    22,
+                                    24,
+                                    26,
+                                  ),
+                                  child: ListTileTheme(
+                                    data: ListTileThemeData(
+                                      minVerticalPadding: 10,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 2,
+                                          ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      tileColor: const Color(0xFFFFF1F6),
+                                      textColor: const Color(0xFF202A3B),
+                                    ),
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        return SingleChildScrollView(
+                                          physics:
+                                              const BouncingScrollPhysics(),
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              minHeight: constraints.maxHeight,
+                                            ),
+                                            child: IntrinsicHeight(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.shield_outlined,
+                                                        color: Color(
+                                                          0xFFD9366E,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      const Expanded(
+                                                        child: Text(
+                                                          'Safety Menu',
+                                                          style: TextStyle(
+                                                            fontSize: 26,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            color: Color(
+                                                              0xFF202A3B,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      IconButton(
+                                                        tooltip: 'Close',
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                              context,
+                                                            ),
+                                                        icon: const Icon(
+                                                          Icons.close_rounded,
+                                                          size: 28,
+                                                        ),
+                                                        style:
+                                                            IconButton.styleFrom(
+                                                              backgroundColor:
+                                                                  const Color(
+                                                                    0xFFF8DEE7,
+                                                                  ),
+                                                              foregroundColor:
+                                                                  const Color(
+                                                                    0xFFD9366E,
+                                                                  ),
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 18),
+                                                  const Divider(
+                                                    color: Color(0xFFF1D6E0),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  // Timer SOS card
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 0,
+                                                    child: Card(
+                                                      color: const Color(
+                                                        0xFFFFF6F9,
+                                                      ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              16,
+                                                            ),
+                                                      ),
+                                                      child: ListTile(
+                                                        leading: CircleAvatar(
+                                                          backgroundColor:
+                                                              _isTimerActive
+                                                              ? Colors.orange
+                                                              : Colors.grey,
+                                                          child: Icon(
+                                                            _isTimerActive
+                                                                ? Icons.timer
+                                                                : Icons
+                                                                      .timer_off,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                        title: const Text(
+                                                          'Timer SOS',
+                                                          style: TextStyle(
+                                                            color: Color(
+                                                              0xFF202A3B,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        subtitle: Text(
+                                                          _isTimerActive
+                                                              ? 'Active - Timer running'
+                                                              : 'Start Safety Timer',
+                                                          style: TextStyle(
+                                                            color:
+                                                                _isTimerActive
+                                                                ? Colors.orange
+                                                                : Color(
+                                                                    0xFF667085,
+                                                                  ),
+                                                          ),
+                                                        ),
+                                                        trailing: ElevatedButton(
+                                                          onPressed: () async {
+                                                            Navigator.pop(
+                                                              context,
+                                                            );
+                                                            if (_isTimerActive) {
+                                                              await _timerSOSService
+                                                                  ?.cancelTimer();
+                                                              setState(
+                                                                () =>
+                                                                    _isTimerActive =
+                                                                        false,
+                                                              );
+                                                              if (mounted) {
+                                                                ScaffoldMessenger.of(
+                                                                  context,
+                                                                ).showSnackBar(
+                                                                  const SnackBar(
+                                                                    content: Text(
+                                                                      '⏱️ Timer Cancelled',
+                                                                    ),
+                                                                    backgroundColor:
+                                                                        Colors
+                                                                            .orange,
+                                                                  ),
+                                                                );
+                                                              }
+                                                            } else {
+                                                              _showTimerDialog();
+                                                            }
+                                                          },
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                _isTimerActive
+                                                                ? Colors.red
+                                                                : Colors.orange,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                          ),
+                                                          child: Text(
+                                                            _isTimerActive
+                                                                ? 'Cancel'
+                                                                : 'Start',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 1,
+                                                    child: SwitchListTile(
+                                                      secondary: Icon(
+                                                        Icons.mic,
+                                                        color: _isVoiceActive
+                                                            ? Colors.green
+                                                            : const Color(
+                                                                0xFF98A2B3,
+                                                              ),
+                                                      ),
+                                                      title: const Text(
+                                                        'Voice Commands',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF202A3B,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      subtitle: Text(
+                                                        _isVoiceActive
+                                                            ? 'Listening for help words'
+                                                            : 'Tap to enable',
+                                                        style: const TextStyle(
+                                                          color: Color(
+                                                            0xFF667085,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      value: _isVoiceActive,
+                                                      onChanged: (value) async {
+                                                        Navigator.pop(context);
+                                                        await _toggleVoiceCommands();
+                                                      },
+                                                    ),
+                                                  ),
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 2,
+                                                    child: ListTile(
+                                                      leading: const Icon(
+                                                        Icons.people,
+                                                        color:
+                                                            Colors.blueAccent,
+                                                      ),
+                                                      title: const Text(
+                                                        'Emergency Contacts',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF202A3B,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      onTap: () {
+                                                        Navigator.pop(context);
+                                                        Navigator.pushNamed(
+                                                          context,
+                                                          '/contacts',
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 3,
+                                                    child: ListTile(
+                                                      leading: const Icon(
+                                                        Icons.security,
+                                                        color:
+                                                            Colors.pinkAccent,
+                                                      ),
+                                                      title: const Text(
+                                                        'Safe Zones',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF202A3B,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      onTap: () {
+                                                        Navigator.pop(context);
+                                                        Navigator.pushNamed(
+                                                          context,
+                                                          '/safe_zones',
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 4,
+                                                    child: ListTile(
+                                                      leading: const Icon(
+                                                        Icons.video_library,
+                                                        color:
+                                                            Colors.orangeAccent,
+                                                      ),
+                                                      title: const Text(
+                                                        'View Recordings',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF202A3B,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      onTap: () {
+                                                        Navigator.pop(context);
+                                                        Navigator.pushNamed(
+                                                          context,
+                                                          '/recordings',
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 5,
+                                                    child: ListTile(
+                                                      leading: const Icon(
+                                                        Icons.person,
+                                                        color:
+                                                            Colors.greenAccent,
+                                                      ),
+                                                      title: const Text(
+                                                        'Edit Profile',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF202A3B,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      onTap: () {
+                                                        Navigator.pop(context);
+                                                        Navigator.pushNamed(
+                                                          context,
+                                                          '/profile',
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  Divider(
+                                                    color: Color(0xFFF1D6E0),
+                                                  ),
+                                                  _MenuEntrance(
+                                                    animation: animation,
+                                                    index: 6,
+                                                    child: ListTile(
+                                                      leading: const Icon(
+                                                        Icons.logout,
+                                                        color: Colors.redAccent,
+                                                      ),
+                                                      title: const Text(
+                                                        'Logout',
+                                                        style: TextStyle(
+                                                          color:
+                                                              Colors.redAccent,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                      onTap: () async {
+                                                        Navigator.pop(context);
+                                                        await auth.logout();
+                                                        Navigator.pushReplacementNamed(
+                                                          context,
+                                                          '/login',
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8, top: 4),
-        child: Column(
-          children: [
-            // Only map card on top
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF130922),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.35),
-                      blurRadius: 18,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _currentPosition == null
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(color: Colors.pinkAccent),
-                            SizedBox(height: 16),
-                            Text(
-                              'Locking on to your location...',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      )
-                    : GoogleMap(
-                        initialCameraPosition: CameraPosition(
-                          target: LatLng(
-                            _currentPosition!.latitude,
-                            _currentPosition!.longitude,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            color: const Color(0xFFF8EEF2),
+            child: _currentPosition == null
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(color: accent),
+                        SizedBox(height: 16),
+                        Text(
+                          'Locking on to your location...',
+                          style: TextStyle(
+                            color: Color(0xFF667085),
+                            fontWeight: FontWeight.w500,
                           ),
-                          zoom: 16,
                         ),
-                        markers: _markers,
-                        circles: {
-                          Circle(
-                            circleId: const CircleId('pulse'),
-                            center: LatLng(
-                              _currentPosition!.latitude,
-                              _currentPosition!.longitude,
-                            ),
-                            radius: _pulseAnimation?.value ?? 0,
-                            fillColor: Colors.blueAccent.withOpacity(
-                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(
-                                    0.0,
-                                    1.0,
-                                  ) *
-                                  0.3,
-                            ),
-                            strokeWidth: 1,
-                            strokeColor: Colors.blueAccent.withOpacity(
-                              (1.0 - (_pulseController?.value ?? 0.0)).clamp(
+                      ],
+                    ),
+                  )
+                : GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(
+                        _currentPosition!.latitude,
+                        _currentPosition!.longitude,
+                      ),
+                      zoom: 16,
+                    ),
+                    markers: _markers,
+                    circles: {
+                      Circle(
+                        circleId: const CircleId('pulse'),
+                        center: LatLng(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                        ),
+                        radius: _pulseAnimation?.value ?? 0,
+                        fillColor: accent.withOpacity(
+                          (1.0 - (_pulseController?.value ?? 0.0)).clamp(
                                 0.0,
                                 1.0,
-                              ),
-                            ),
+                              ) *
+                              0.3,
+                        ),
+                        strokeWidth: 1,
+                        strokeColor: accent.withOpacity(
+                          (1.0 - (_pulseController?.value ?? 0.0)).clamp(
+                            0.0,
+                            1.0,
                           ),
-                        },
-                        myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
-                        compassEnabled: true,
-                        mapToolbarEnabled: true,
-                        zoomControlsEnabled: false,
-                        onMapCreated: (controller) {
-                          _mapController = controller;
-                          debugPrint('🗺️ Map created successfully');
-                        },
+                        ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _SafetyStatusBanner(
-              isAnalyzing: _analyzingRisk,
-              result: _lastAIRiskResult,
-            ),
-            const SizedBox(height: 10),
-
-            // Bottom controls
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF130922),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
+                    },
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    compassEnabled: true,
+                    mapToolbarEnabled: true,
+                    zoomControlsEnabled: false,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                      debugPrint('🗺️ Map created successfully');
+                    },
                   ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    // Record
-                    _BottomAction(
-                      label: _recordingService.isRecording ? 'Stop' : 'Record',
-                      icon: _recordingService.isRecording
-                          ? Icons.stop_circle
-                          : Icons.videocam,
-                      color: _recordingService.isRecording
-                          ? Colors.redAccent
-                          : Colors.white70,
-                      onTap: () async {
-                        if (_recordingService.isRecording) {
-                          await _stopRecording();
-                        } else {
-                          await _startRecording();
-                        }
-                      },
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 12,
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: const Color(0xFFF1D6E0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x260B1220),
+                      blurRadius: 30,
+                      offset: Offset(0, 12),
                     ),
-
-                    // SOS
-                    GestureDetector(
-                      onTap: _manualSOS,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: _sendingSOS ? Colors.grey : accent,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: accent.withOpacity(0.7),
-                                  blurRadius: 25,
-                                  spreadRadius: 3,
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: _sendingSOS
-                                  ? const CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 3,
-                                    )
-                                  : const Text(
-                                      "SOS",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 2,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'SOS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE7CCD6),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-
-                    // Call
-                    _BottomAction(
-                      label: 'Call',
-                      icon: Icons.phone,
-                      color: Colors.greenAccent,
-                      onTap: _triggerRealCall,
+                    const SizedBox(height: 12),
+                    _SafetyStatusBanner(
+                      isAnalyzing: _analyzingRisk,
+                      result: _lastAIRiskResult,
                     ),
-
-                    // Profile
-                    _BottomAction(
-                      label: 'Profile',
-                      icon: Icons.person,
-                      color: Colors.lightBlueAccent,
-                      onTap: () {
-                        Navigator.pushNamed(context, '/profile');
-                      },
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _BottomAction(
+                          label: _recordingService.isRecording
+                              ? 'Stop'
+                              : 'Record',
+                          icon: _recordingService.isRecording
+                              ? Icons.stop_circle
+                              : Icons.videocam,
+                          color: _recordingService.isRecording
+                              ? Colors.redAccent
+                              : const Color(0xFF667085),
+                          onTap: () async {
+                            if (_recordingService.isRecording) {
+                              await _stopRecording();
+                            } else {
+                              await _startRecording();
+                            }
+                          },
+                        ),
+                        GestureDetector(
+                          onTap: _manualSOS,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 76,
+                                height: 76,
+                                decoration: BoxDecoration(
+                                  color: _sendingSOS ? Colors.grey : accent,
+                                  shape: BoxShape.circle,
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x59D9366E),
+                                      blurRadius: 22,
+                                      offset: Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: _sendingSOS
+                                      ? const CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 3,
+                                        )
+                                      : const Text(
+                                          'SOS',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 2,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              const Text(
+                                'SOS',
+                                style: TextStyle(
+                                  color: ink,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _BottomAction(
+                          label: 'Call',
+                          icon: Icons.phone,
+                          color: const Color(0xFF3AA981),
+                          onTap: _triggerRealCall,
+                        ),
+                        _BottomAction(
+                          label: 'Profile',
+                          icon: Icons.person,
+                          color: const Color(0xFF5476A8),
+                          onTap: () {
+                            Navigator.pushNamed(context, '/profile');
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuEntrance extends StatelessWidget {
+  final Animation<double> animation;
+  final int index;
+  final Widget child;
+
+  const _MenuEntrance({
+    required this.animation,
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start = (0.12 + index * 0.075).clamp(0.0, 0.72);
+    final itemAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Interval(start, 1, curve: Curves.easeOutBack),
+      reverseCurve: const Interval(0, 0.76, curve: Curves.easeInCubic),
+    );
+
+    return FadeTransition(
+      opacity: itemAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.22),
+          end: Offset.zero,
+        ).animate(itemAnimation),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: child,
         ),
       ),
     );
@@ -1393,7 +1829,7 @@ class _SafetyStatusBanner extends StatelessWidget {
     final statusColor = isAnalyzing
         ? Colors.blueAccent
         : switch (level) {
-            AIRiskLevel.lowRisk => Colors.greenAccent,
+            AIRiskLevel.lowRisk => const Color(0xFF3AA981),
             AIRiskLevel.suspicious => Colors.orangeAccent,
             AIRiskLevel.highRisk => Colors.redAccent,
           };
@@ -1410,9 +1846,9 @@ class _SafetyStatusBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF130922),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withOpacity(0.7)),
+        color: const Color(0xFFFFF6F9),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF1D6E0)),
       ),
       child: Row(
         children: [
@@ -1422,7 +1858,7 @@ class _SafetyStatusBanner extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: Colors.white,
+                color: Color(0xFF202A3B),
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -1454,11 +1890,23 @@ class _BottomAction extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 26, color: color),
-          const SizedBox(height: 4),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF2F6),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(height: 6),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            style: const TextStyle(
+              color: Color(0xFF475467),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
