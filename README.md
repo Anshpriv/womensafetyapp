@@ -5,7 +5,7 @@
 </div>
 
 <div align="center">
-  <img src="lib/Free_Orange_iPhone_17_Pro_Mockup_Floating_Minimal_Background_4500x3000-removebg-preview" alt="Shrimati Setu App Banner" width="1000" />
+  <img src="lib/Free_Orange_iPhone_17_Pro_Mockup_Floating_Minimal_Background_4500x3000-removebg-preview.png" alt="Shrimati Setu App Banner" width="1000" />
 </div>
 
 A Flutter-based mobile safety application designed to help women respond quickly in emergency situations through SOS alerts, live location sharing, geofencing, voice triggers, and AI-assisted risk detection.
